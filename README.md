@@ -4,17 +4,23 @@ A build-it-then-race-it party platformer for friends, made with the **Phaser 3**
 
 ## Play it
 
-- **Quickest:** open `dist/ultimate-horse-chicken.html` in Chrome, Edge or Firefox. Everything is inside that one file.
+- **Online with friends:** open your Render link. One person presses **Host a game** on the title screen and gets a 6-letter **game code** (or copies the invite link from the bar at the bottom of the treehouse). Friends type the code under **Join**, or just open the invite link. The host picks the map; everyone plays on their own device. Up to 8 players.
+- **On one computer (couch):** press **Play on this computer** — extra players join with Keyboard 2 or controllers.
+- **Offline copy:** `dist/ultimate-horse-chicken.html` runs straight from a file (couch play only — online needs the server).
 - **From this folder:** run `npm start` and open http://localhost:3000.
 
 ## Put it online (GitHub + Render, same as Overdrive)
 
-1. Upload this whole folder to a GitHub repo (or a folder inside one).
-2. On Render: **New → Web Service**, pick the repo.
-3. Settings: **Build command** `npm install` · **Start command** `npm start` · if the game sits in a sub-folder, set **Root Directory** to that folder.
-4. When it says **Live**, the link at the top is the game.
+1. Push this folder to a GitHub repo.
+2. On Render: **New → Web Service**, pick the repo (or **New → Blueprint**, which reads `render.yaml`).
+3. Settings: **Runtime** Node · **Build command** `npm install` · **Start command** `npm start` · if the game sits in a sub-folder, set **Root Directory** to that folder.
+4. When it says **Live**, the link at the top is the game. Every push to the repo redeploys it.
 
-No packages need installing — Phaser is already included in `public/vendor`.
+No packages need installing — Phaser is included in `public/vendor` and the server (including its WebSocket code) has no dependencies. Free Render servers sleep when nobody is playing; the first visit can take up to a minute while it wakes up.
+
+### How online play works
+
+The server (`server.js`, `server/`) serves the game and keeps the rooms: it hands out game codes and passes messages between the players in a room. The **host's browser runs the match rules** — it rolls the items, decides whose turn it is, handles time-outs and decides when a race ends — and sends those decisions to everyone. Each player's own browser moves their own character and streams its position to the others, so movement always feels instant. If the host leaves, the game ends for everyone; if a guest leaves mid-match, the match carries on without them. Party and Creative modes are online; Challenge and Free Build are on-this-computer modes.
 
 ## Controls
 
@@ -52,7 +58,11 @@ Keyboard 2 joins by pressing **Enter** in the treehouse; each controller joins b
 | `js/12_lobby_*.js` | The treehouse lobby scene |
 | `js/13_main.js` | Phaser game config, scene flow, transitions, pause |
 | `js/14_ui_*.js` | Menus (settings, rules, wardrobe, community shelf…) |
-| `server.js` | Tiny web server for Render (online play will be added here) |
+| `js/15_online.js` | Online play: connecting, game codes, syncing players and match events |
+| `js/16_title.js` | The title screen (host / join with a code / play on this computer) |
+| `server.js` | Web server + online rooms (`/ws`) for Render |
+| `server/ws.js`, `server/rooms.js` | Dependency-free WebSocket server and the room / game-code logic |
+| `render.yaml` | One-click Render setup |
 | `tools/build-single.js` | `npm run build` → rebuilds the one-file version in `dist/` |
 
 Progress, stats and saved levels are stored in the browser on each device.

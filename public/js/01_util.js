@@ -98,16 +98,20 @@ function starPath(ctx, x, y, r1, r2, n) {
 }
 
 // ===================== NETWORK HOOK =====================
-// All match-changing actions go through Net.dispatch so the online version can
-// relay them to other players. Locally it just applies them straight away.
+// Everything that changes a match goes through Net.dispatch. Offline it is applied straight away.
+// Online, the host's browser runs the match rules: the host applies an action and relays it to
+// everyone; a guest's action is sent to the host as a request (the host checks it, then relays it).
+// Handlers return false to reject an action (it is then not relayed).
 const Net = {
-  online: false, isHost: true,
+  online: false, isHost: true, remote: false, rules: null,
   handlers: {},
   on(type, fn) { this.handlers[type] = fn; },
-  dispatch(action) {
-    // online version: if (!this.isHost) { socket.send(action); return; }
-    const h = this.handlers[action.t];
-    if (h) h(action);
-    // online version: if host, broadcast action to clients here.
+  apply(a, from) { const h = this.handlers[a.t]; return h ? h(a, from) : false; },
+  dispatch(a) {
+    if (!this.online) { this.apply(a); return; }
+    if (this.isHost) { if (this.apply(a) !== false) Online.send({ t: 'cast', m: a }); }
+    else Online.send({ t: 'cast', to: 'host', m: Object.assign({}, a, { req: 1 }) });
   },
+  // fire-and-forget message to the other players (cursor positions, cosmetic events)
+  cast(a) { if (this.online) Online.send({ t: 'cast', m: a }); },
 };

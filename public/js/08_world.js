@@ -106,7 +106,7 @@ class WorldView {
   }
   onSpawn(p) {
     if (!p.body) return;
-    p.body.enable = true; p.body.reset(p.x + PW / 2, p.y + PH / 2); p.body.setVelocity(0, 0);
+    p.body.reset(p.x + PW / 2, p.y + PH / 2); p.body.setVelocity(0, 0); p.body.enable = !(p.entry && p.entry.remote); p._pt = null;
     p.spr.setAlpha(1).setVisible(true).setRotation(0); p.tag.setVisible(Save.data.settings.names && this.players.length > 1);
     if (p.deadTween) { p.deadTween.stop(); p.deadTween = null; }
   }
@@ -120,7 +120,23 @@ class WorldView {
   shake(px) { if (Save.data.settings.shake) { const c = this.s.cameras.main; c.shake(180, px / Math.max(400, c.width)); } }
 
   // ---------- per-frame player control (inputs -> Arcade body velocities) ----------
+  // Another online player: their own game moves them; we just follow the positions they stream to us.
+  puppet(p, dt) {
+    p.animT += dt; if (p.blinkT > 0) p.blinkT -= dt; else p.blinkT = rand(2, 5);
+    if (p.squash) p.squash = approach(p.squash, 0, dt * 2.2);
+    if (p.body && p.body.enable) p.body.enable = false;
+    if (!p.alive) { p.deathT += dt; return; }
+    if (p.finished) { p.finishT += dt; p.state = 'dance'; return; }
+    const st = Online.states.get(p.entry.netId); if (!st || !Array.isArray(st.s)) return;
+    const s = st.s, age = Math.min(.2, (performance.now() - st.at) / 1000);
+    const tx = s[0] + (s[2] || 0) * age, ty = s[1] + (s[3] || 0) * age;
+    if (p._pt == null || Math.hypot(tx - p.x, ty - p.y) > 160) { p.x = tx; p.y = ty; }
+    else { const k = 1 - Math.exp(-dt * 18); p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; }
+    p._pt = 1; p.vx = s[2] || 0; p.vy = s[3] || 0; p.facing = s[4] < 0 ? -1 : 1; p.state = PS_STATES[s[5]] || 'idle';
+    const f = s[6] | 0; p.scared = f & 1 ? 1 : 0; p.onGround = !!(f & 2);
+  }
   controlPlayer(p, inp, dt) {
+    if (p.entry && p.entry.remote) { this.puppet(p, dt); return; }
     const W = this.W, R = W.rules, b = p.body;
     p.animT += dt; if (p.blinkT > 0) p.blinkT -= dt; else p.blinkT = rand(2, 5);
     if (p.squash) p.squash = approach(p.squash, 0, dt * 2.2);
@@ -206,7 +222,7 @@ class WorldView {
       if (p.onGround && p.ground) {
         const g = p.ground;
         if (g.surf === 'bounce' && p.vy >= 0) { p.vy = -980; p.squash = .3; if (g.ref) g.ref.st.boing = 1; Audio2.sfx('bounce'); }
-        else if (g.surf === 'crumble' && g.ref && !(g.ref.st.shake > 0)) g.ref.st.shake = .001;
+        else if (g.surf === 'crumble' && g.ref && !(g.ref.st.shake > 0)) { g.ref.st.shake = .001; Net.cast({ t: 'crumble', uid: g.ref.uid }); }
         if (g.surf === 'conv') conv = g.conv;
       }
       if (p.onGround && !p.wasGround && p.lastVy > 300) { p.squash = Math.min(.32, p.lastVy / 2400); Audio2.sfx('land'); FX.burst(p.x + p.w / 2, p.y + p.h, 4, { color: '#ffffff', kind: 'puff', g: 0, smin: 20, smax: 70 }); }
@@ -222,7 +238,7 @@ class WorldView {
     for (const pu of W.pushers) if (rectsOverlap(hb, pu)) { p.vx = pu.ix; p.vy = pu.iy; b.setVelocity(pu.ix, pu.iy); p.stun = .35; p.onGround = false; p.wallLock = .2; FX.burst(p.x + p.w / 2, p.y + p.h / 2, 6, { color: '#ffd34d', kind: 'star', g: 0 }); }
     for (const h of W.hazards) if (shapeHitsRect(h, hb)) { killPlayer(W, p, h); return; }
     for (let i = W.projs.length - 1; i >= 0; i--) { const pr = W.projs[i]; if (rectCircle(hb, { x: pr.x, y: pr.y, r: pr.r })) { W.projs.splice(i, 1); killPlayer(W, p, pr); return; } }
-    for (const it of W.items) if (it._coin && !it.st.taken && !p.coin && rectCircle(hb, it._coin)) { it.st.taken = true; p.coin = it; Audio2.sfx('coin'); FX.burst(it._coin.x, it._coin.y, 12, { color: '#ffd34d', kind: 'star', g: 0 }); }
+    for (const it of W.items) if (it._coin && !it.st.taken && !p.coin && rectCircle(hb, it._coin)) { it.st.taken = true; p.coin = it; if (W.onCoin) W.onCoin(p, it); Audio2.sfx('coin'); FX.burst(it._coin.x, it._coin.y, 12, { color: '#ffd34d', kind: 'star', g: 0 }); }
     if ((W.racing || W.testing) && rectsOverlap(hb, W.goal)) { finishPlayer(W, p); return; }
     // --- animation state ---
     if (ix) p.facing = ix > 0 ? 1 : -1;

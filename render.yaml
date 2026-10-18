@@ -1,0 +1,9 @@
+# One-click deploy on Render (https://render.com): New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: ultimate-horse-chicken
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /status

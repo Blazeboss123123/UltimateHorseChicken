@@ -1,17 +1,18 @@
 // ===================== GAME SHELL (Phaser boot, scene flow, transitions, pause) =====================
-const WORLD_SCENES = ['Lobby', 'Match', 'Challenge', 'Editor'];
+const WORLD_SCENES = ['Title', 'Lobby', 'Match', 'Challenge', 'Editor'];
 const Game = {
   phaser: null, trans: null,
   get scene() { const s = this.worldScene(); return s ? s.scene.key.toLowerCase() : ''; },
   worldScene() { if (!this.phaser) return null; for (const k of WORLD_SCENES) { const s = this.phaser.scene.getScene(k); if (s && s.sys.isActive()) return s; } return null; },
-  paused() { return Input.uiCapture && this.scene !== 'lobby'; },
+  // menus pause the game offline; online the world keeps going for everyone else
+  paused() { return Input.uiCapture && !Net.online && this.scene !== 'lobby' && this.scene !== 'title'; },
   go(key, data) {
     const S = this.phaser.scene;
     for (const k of WORLD_SCENES) if (S.isActive(k) || S.isPaused(k)) S.stop(k);
     S.start(key, data || {});
     S.bringToTop('Hud');
   },
-  transition(fn) { if (this.trans) return; this.trans = { t: 0, fn, done: false }; },
+  transition(fn) { if (this.trans) { this.nextTrans = fn; return; } this.trans = { t: 0, fn, done: false }; },
   launch(mode, mapId, custom, edLevel) {
     this.transition(() => {
       UI.closeAll();
@@ -20,14 +21,29 @@ const Game = {
       else if (mode === 'challenge') this.go('Challenge', { mapId });
     });
   },
-  toLobby() { this.transition(() => { UI.closeAll(); this.go('Lobby'); Progress.check(); Save.write(); }); },
+  toLobby() {
+    this.transition(() => {
+      UI.closeAll();
+      if (Net.online) { Net.inMatch = false; Lobby.launch = null; if (Net.isHost) Online.send({ t: 'state', v: 'lobby' }); Online.buildRoster(); }
+      this.go('Lobby'); Progress.check(); Save.write();
+    });
+  },
+  // back to the title screen (leaves any online game)
+  toTitle() {
+    this.transition(() => {
+      UI.closeAll(); Online.leave(); Session.resetLocal();
+      for (const e of Session.roster) { bakeCharacter(e); bakePortrait(e); }
+      try { history.replaceState(null, '', location.pathname); } catch (e) { }
+      this.go('Title'); Save.write();
+    });
+  },
   drawTransition(hud, dt) {
     const g = hud.irisG; g.clear(); hud.irisChars.forEach(c => c.setVisible(false));
     const tr = this.trans; if (!tr) return;
     tr.t += dt;
     const D = .38; let k;
     if (!tr.done) { k = 1 - tr.t / D; if (tr.t >= D) { tr.done = true; tr.t = 0; try { tr.fn(); } catch (e) { console.error(e); } k = 0; } }
-    else { k = tr.t / D; if (tr.t >= D) { this.trans = null; return; } }
+    else { k = tr.t / D; if (tr.t >= D) { this.trans = null; if (this.nextTrans) { const f = this.nextTrans; this.nextTrans = null; this.transition(f); } return; } }
     k = clamp(k, 0, 1);
     const cam = hud.cameras.main, W = cam.width, H = cam.height, R = Math.hypot(W, H) * .6 * k;
     // a dark frame with a shrinking/growing round hole (drawn as a thick ring)
@@ -47,7 +63,8 @@ const Game = {
     Input.poll();
     const wasUI = Input.uiCapture;
     if (wasUI) { UI.update(delta / 1000); if (!Input.uiCapture) Input.skip = true; }
-    else if (this.scene && this.scene !== 'lobby' && !this.trans && Input.anyPressed('menu')) UI.pause(this.scene);
+    else if (this.scene && this.scene !== 'lobby' && this.scene !== 'title' && !this.trans && Input.anyPressed('menu')) UI.pause(this.scene);
+    try { Online.tick(delta / 1000); NetBar.update(); } catch (e) { console.error(e); }
     const ws = this.worldScene();
     if (ws && ws.physics && ws.physics.world) { const want = this.paused(); if (want && !ws.physics.world.isPaused) ws.physics.pause(); else if (!want && ws.physics.world.isPaused) ws.physics.resume(); }
     if (!this.paused()) Save.data.stats.playTime += delta / 1000;
@@ -61,10 +78,9 @@ class BootScene extends Phaser.Scene {
     bakeItems();
     for (const e of Session.roster) { bakeCharacter(e); bakePortrait(e); }
     this.scene.launch('Hud');
-    Game.go('Lobby');
+    Game.go('Title');
     const L = document.getElementById('loading'); if (L) L.remove();
-    if (!Save.data.welcomed) { Save.data.welcomed = true; Save.write(); setTimeout(() => UI.howto(), 500); }
-    else toast('🐴🐔 Welcome back to the treehouse!');
+    if (!Save.data.welcomed) { Save.data.welcomed = true; Save.write(); }
   }
 }
 
@@ -85,7 +101,7 @@ function bootGame() {
     render: { antialias: true, roundPixels: false },
     fps: { target: 60 },
     banner: false,
-    scene: [BootScene, HudScene, LobbyScene, MatchScene, ChallengeScene, EditorScene],
+    scene: [BootScene, HudScene, TitleScene, LobbyScene, MatchScene, ChallengeScene, EditorScene],
   });
   window.GAME = Game.phaser = game;
   game.events.on('prestep', (time, delta) => Game.preStep(delta));

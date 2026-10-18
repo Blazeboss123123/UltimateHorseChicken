@@ -89,6 +89,14 @@ const Input = {
   read(src) {
     const r = { ix: 0, iy: 0, held: {}, pressed: {} };
     if (!src || this.uiCapture || this.skip) return r;
+    if (src === 'any') { // online: the one local player can use keyboard 1 or any controller
+      const list = ['kb1', 'pad0', 'pad1', 'pad2', 'pad3'].map(s2 => this.read(s2));
+      for (const a of ACTIONS) { r.held[a] = list.some(q => q.held[a]); r.pressed[a] = list.some(q => q.pressed[a]); }
+      const pad = list.slice(1).find(q => q.ix || q.iy);
+      r.ix = pad && Math.abs(pad.ix) > Math.abs(list[0].ix) ? pad.ix : list[0].ix; r.iy = pad && Math.abs(pad.iy) > Math.abs(list[0].iy) ? pad.iy : list[0].iy;
+      r.fine = list.some(q => q.fine);
+      return r;
+    }
     if (src.startsWith('kb')) {
       const B = this.binds(src);
       for (const a of ACTIONS) {

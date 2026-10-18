@@ -98,8 +98,10 @@ const UI = {
       '<button class="btn alt f" data-a="controls">Controls</button>' +
       '<button class="btn alt f" data-a="howto">How to play</button>' +
       (ctx === 'lobby' ? '<button class="btn alt f" data-a="players">Players</button>' : '') +
-      (ctx === 'lobby' && Session.host() ? '<button class="btn alt f" data-a="rules">Match rules</button>' : '') +
-      (inGame ? '<button class="btn red f" data-a="quit">Quit to treehouse</button>' : '') + '</div>');
+      (ctx === 'lobby' && (!Net.online || Net.isHost) ? '<button class="btn alt f" data-a="rules">Match rules</button>' : '') +
+      (Net.online ? (inGame && Net.isHost && ctx === 'match' ? '<button class="btn red f" data-a="quit">Back to treehouse (everyone)</button>' : '') + '<button class="btn red f" data-a="leave">' + (Net.isHost ? 'Close online game' : 'Leave online game') + '</button>'
+        : (inGame ? '<button class="btn red f" data-a="quit">Quit to treehouse</button>' : '<button class="btn red f" data-a="title">Back to title screen</button>')) + '</div>' +
+      (Net.online ? '<p class="small" style="text-align:center">Game code <b>' + Online.code + '</b> · the game keeps running while this menu is open</p>' : ''));
     P.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => {
       const a = b.dataset.a;
       if (a === 'resume') this.close();
@@ -108,7 +110,9 @@ const UI = {
       if (a === 'howto') this.howto();
       if (a === 'players') this.players();
       if (a === 'rules') this.rules();
-      if (a === 'quit') { this.closeAll(); if (Game.scene === 'editor') Ed.exit(); else Game.toLobby(); }
+      if (a === 'quit') { this.closeAll(); if (Game.scene === 'editor') Ed.exit(); else if (Net.online) Net.dispatch({ t: 'toLobby' }); else Game.toLobby(); }
+      if (a === 'leave') this.confirm(Net.isHost ? 'Close the game for everyone? Your friends will go back to the title screen.' : 'Leave this online game?', () => Game.toTitle());
+      if (a === 'title') { this.closeAll(); Game.toTitle(); }
     }));
   },
   howto() {
@@ -117,6 +121,7 @@ const UI = {
       '<h3>Each round</h3><p>1. <b>Pick</b> — take turns choosing an item from the party box.<br>2. <b>Build</b> — take turns placing it anywhere on the level (not on the start or flag).<br>3. <b>Race</b> — everyone runs at once. Reach the flag!</p>' +
       '<h3>Points</h3><p>🚩 Finish · ⭐ First to finish · 🦸 Only finisher · 🌰 Bring the golden acorn · 🐢 Underdog (finish while in last place) · 🪤 Your traps catch other players.<br><b>Too easy</b> (everyone finishes) or <b>too hard</b> (nobody finishes) = no points for anyone.</p>' +
       '<h3>Moves</h3><p>Hold jump to jump higher. Slide down walls and jump off them. To climb a wall, hold towards it and keep tapping jump — every bounce takes you a little higher. Hold up on vines and ladders. Down + jump drops through cloud platforms. Honey lets you cling to walls.</p>' +
+      '<h3>Online with friends</h3><p>On the title screen one person presses <b>Host a game</b> and gets a 6-letter <b>game code</b>. Everyone else types that code under <b>Join</b> (or opens the invite link). The host picks the map; everybody plays on their own device.</p>' +
       '<h3>Local multiplayer</h3><p>Keyboard 1 joins automatically. Press <span class="kbd">Enter</span> to add Keyboard 2 (IJKL, Right-Shift jump, Enter interact) or press <b>A</b> on any controller to add a gamepad player — up to 8 players.</p>' +
       '<div class="row"><button class="btn f" data-close>Got it!</button></div>', { width: 640 });
   },

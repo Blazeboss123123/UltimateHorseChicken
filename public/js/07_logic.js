@@ -19,7 +19,7 @@ function createWorld(map, rules) {
   }
   // invisible side walls
   W.terrainSolids.push({ x: -200, y: -3000, w: 200, h: map.h * T + 4000, terrain: true, wall: true }, { x: map.w * T, y: -3000, w: 200, h: map.h * T + 4000, terrain: true, wall: true });
-  if (map.bridge) for (let x = map.bridge.from; x <= map.bridge.to; x += map.bridge.step) { const it = makeItem('falling', x * T, map.bridge.y * T, 0, -1); it.fixed = true; it.mapOwned = true; W.items.push(it); }
+  if (map.bridge) for (let x = map.bridge.from; x <= map.bridge.to; x += map.bridge.step) { const it = makeItem('falling', x * T, map.bridge.y * T, 0, -1); it.uid = 'b' + x; it.fixed = true; it.mapOwned = true; W.items.push(it); }
   W.start = { x: map.start[0] * T, y: map.start[1] * T, w: map.start[2] * T, h: map.start[3] * T };
   W.goal = { x: map.goal[0] * T - 14, y: map.goal[1] * T - 78, w: 46, h: 78 };
   W.goalZone = { x: W.goal.x - T, y: W.goal.y - T, w: W.goal.w + 2 * T, h: W.goal.h + T };
@@ -60,7 +60,8 @@ function spawnPlayers(W, list) {
 }
 const approach = (v, t, a) => v < t ? Math.min(v + a, t) : Math.max(v - a, t);
 
-function killPlayer(W, p, cause) {
+// quiet = show the death but don't report it (used for other online players, whose own game reports it)
+function killPlayer(W, p, cause, quiet) {
   if (!p.alive || p.finished) return;
   p.alive = false; p.deathT = 0; p.killedBy = cause.owner; p.deathSrc = cause.src;
   if (p.coin) { p.coin.st.taken = false; p.coin = null; }
@@ -71,15 +72,15 @@ function killPlayer(W, p, cause) {
   FX.text(cx, cy - 20, cause.water ? 'SPLASH!' : pick(['POP!', 'POOF!', 'BONK!', 'YIKES!']), '#fff');
   Audio2.sfx(cause.water ? 'splash' : 'death');
   if (W.view) W.view.onDeath(p, cause);
-  if (W.onDeath) W.onDeath(p, cause);
+  if (W.onDeath && !quiet) W.onDeath(p, cause);
 }
-function finishPlayer(W, p) {
+function finishPlayer(W, p, quiet) {
   if (p.finished || !p.alive) return;
   p.finished = true; p.finishT = 0; p.vx = p.vy = 0; p.state = 'dance';
   FX.burst(p.x + p.w / 2, p.y, 22, { color: ['#ffd34d', '#ff5fa2', '#5fc8ff', '#7ae07a'], kind: 'star', g: 300, smin: 120, smax: 380 });
   Audio2.sfx('goal');
   if (W.view) W.view.onFinish(p);
-  if (W.onFinish) W.onFinish(p);
+  if (W.onFinish && !quiet) W.onFinish(p);
 }
 
 // ---------- Placement validation ----------

@@ -40,8 +40,8 @@ Object.assign(Match, {
     M.players.forEach((p, i) => {
       const x = x0 + i * cw;
       rr(ctx, x + 3, y, cw - 6, h, 12); ctx.fillStyle = 'rgba(255,246,230,.9)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = p.color; ctx.stroke();
-      hudPortrait(ctx, x + 6 + 18 * u, y + h / 2, 17 * u, p.entry, { dim: M.phase === 'race' && !p.alive && !p.finished });
-      txt(ctx, p.name.slice(0, 10), x + 44 * u, y + 15 * u, 12 * u, INK, 'left', null, 600);
+      hudPortrait(ctx, x + 6 + 18 * u, y + h / 2, 17 * u, p.entry, { dim: p.gone || (M.phase === 'race' && !p.alive && !p.finished) });
+      txt(ctx, (p.gone ? '👋 ' : '') + p.name.slice(0, 10) + (M.me === p && Net.online ? ' (you)' : ''), x + 44 * u, y + 15 * u, 12 * u, INK, 'left', null, 600);
       txt(ctx, String(M.scores[i].total), x + 44 * u, y + 33 * u, 18 * u, INK, 'left', null, 700);
       if (M.phase === 'race' && M.countdown <= 0) txt(ctx, p.finished ? '🚩' : !p.alive ? '💫' : '', x + cw - 18 * u, y + h / 2, 18 * u, '#fff', 'center', null);
       if ((M.phase === 'build' && M.placing && M.placing.pi === i) || (M.phase === 'pick' && M.picker === i)) poly(ctx, [[x + cw / 2 - 8, y - 4], [x + cw / 2 + 8, y - 4], [x + cw / 2, y + 6]], '#ffd34d', 2);
@@ -55,7 +55,7 @@ Object.assign(Match, {
     panel(ctx, px, py, pw, ph);
     const pl = M.players[M.picker];
     hudPortrait(ctx, px + 40 * u, py + 36 * u, 22 * u, pl.entry);
-    txt(ctx, pl.name + (M.mode === 'creative' ? ' — choose anything!' : ' — pick an item!'), px + 72 * u, py + 36 * u, 24 * u, pl.color, 'left');
+    txt(ctx, (Net.online && pl === M.me ? 'Your turn' : pl.name) + (M.mode === 'creative' ? ' — choose anything!' : ' — pick an item!'), px + 72 * u, py + 36 * u, 24 * u, pl.color, 'left');
     rr(ctx, px + 20 * u, py + 64 * u, pw - 40 * u, 8 * u, 4); ctx.fillStyle = 'rgba(58,42,30,.15)'; ctx.fill();
     rr(ctx, px + 20 * u, py + 64 * u, Math.max(1, (pw - 40 * u) * clamp(M.timer / M.rules.pickTime, 0, 1)), 8 * u, 4); ctx.fillStyle = M.timer < 3 ? '#ff5a4a' : pl.color; ctx.fill();
     M.boxRects = [];
@@ -86,9 +86,9 @@ Object.assign(Match, {
     panel(ctx, x, y, w, h);
     hudIcon(ctx, c.id, x + 34 * u, y + h / 2, 40 * u);
     txt(ctx, M.undoT > 0 ? pl.name + ' placed it!' : pl.name + ' is placing: ' + ITEMS[c.id].name, x + 64 * u, y + 20 * u, 19 * u, pl.color, 'left');
-    const src = pl.entry.input, kb = src.startsWith('kb'), B = kb ? Input.binds(src) : null;
+    const src = pl.entry.input === 'any' ? 'kb1' : pl.entry.input, kb = src.startsWith('kb'), B = kb ? Input.binds(src) : null;
     const k = a => kb ? keyLabel((B[a] || [])[0]) : PAD_LABELS[a].split(' ')[0];
-    const hint = M.undoT > 0 ? (k('undo') + ' undo · ' + k('jump') + ' continue') : (src === 'kb1' ? 'Mouse/WASD move · Click/E place · R/wheel rotate · Shift fine' : (kb ? 'Move · ' + k('interact') + ' place · ' + k('rotate') + ' rotate' : 'Stick move · A/X place · Y rotate · LT fine'));
+    const hint = pl.entry.remote ? (M.undoT > 0 ? 'They can still undo it for a moment…' : 'Watch where they put it!') : M.undoT > 0 ? (k('undo') + ' undo · ' + k('jump') + ' continue') : (src === 'kb1' ? 'Mouse/WASD move · Click/E place · R/wheel rotate · Shift fine' : (kb ? 'Move · ' + k('interact') + ' place · ' + k('rotate') + ' rotate' : 'Stick move · A/X place · Y rotate · LT fine'));
     txt(ctx, hint, x + 64 * u, y + 42 * u, 13 * u, INK, 'left', null, 500);
     if (M.undoT > 0) { rr(ctx, x + 10, y + h - 7, Math.max(1, (w - 20) * (M.undoT / 1.6)), 4, 2); ctx.fillStyle = pl.color; ctx.fill(); }
     if (c.valid && !c.valid.ok && !c.done) txt(ctx, c.valid.why, SW / 2, y + h + 20 * u, 17 * u, '#ff7a6a');
@@ -126,7 +126,7 @@ Object.assign(Match, {
     const M = this.M; const names = M.winners.map(i => M.players[i].name).join(' & ');
     panel(ctx, SW / 2 - 320 * u, 80 * u, 640 * u, 120 * u, '#fff1c4');
     txt(ctx, '🏆 ' + names + (M.winners.length > 1 ? ' tie!' : ' wins!'), SW / 2, 125 * u, 34 * u, '#e8573f');
-    txt(ctx, M.resultsT > 2.5 ? 'Press jump to return to the treehouse' : 'What a match!', SW / 2, 170 * u, 17 * u, INK, 'center', null, 600);
+    txt(ctx, M.resultsT > 2.5 ? (M.host ? 'Press jump to return to the treehouse' : 'The host will take everyone back to the treehouse') : 'What a match!', SW / 2, 170 * u, 17 * u, INK, 'center', null, 600);
     const sorted = M.players.map((p, i) => [i, M.scores[i].total]).sort((a, b) => b[1] - a[1]);
     sorted.forEach(([i, s], k) => { const p = M.players[i]; const x = SW / 2 - (sorted.length - 1) * 50 * u + k * 100 * u; hudPortrait(ctx, x, SH - 70 * u, 26 * u, p.entry); txt(ctx, s + ' pts', x, SH - 32 * u, 15 * u, '#fff'); });
   },

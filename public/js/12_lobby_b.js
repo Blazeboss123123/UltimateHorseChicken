@@ -70,8 +70,8 @@ class LobbyScene extends Phaser.Scene {
         if (!host) { toast('Only the host can pick the map'); return; }
         Net.dispatch({ t: 'lobbyMap', map: m.id }); this.startLaunch(m.id, null); break;
       }
-      case 'mode': { const i = MODES.findIndex(m => m.id === Session.mode); Net.dispatch({ t: 'lobbyMode', mode: MODES[(i + 1) % MODES.length].id }); break; }
-      case 'couch': UI.players(); break;
+      case 'mode': { const list = Net.online ? MODES.filter(m => m.id === 'party' || m.id === 'creative') : MODES; const i = list.findIndex(m => m.id === Session.mode); Net.dispatch({ t: 'lobbyMode', mode: list[(i + 1) % list.length].id }); break; }
+      case 'couch': if (Net.online) toast('Online, each friend plays on their own device — share the game code <b>' + Online.code + '</b>!'); else UI.players(); break;
       case 'wardrobe': UI.wardrobe(p.entry); break;
       case 'trophies': UI.achievements(); break;
       case 'stats': UI.stats(); break;
@@ -85,16 +85,20 @@ class LobbyScene extends Phaser.Scene {
       case 'bell': { Save.data.stats.bellRings++; Audio2.sfx('bell'); FX.text(a.x + 35, a.y, 'DONG!', '#ffd34d'); this.tweens.add({ targets: this.bell, angle: { from: -25, to: 0 }, duration: 900, ease: 'Elastic.easeOut' }); Progress.check(); for (const b of this.birds) b.vx *= -1.8; break; }
     }
   }
-  startLaunch(mapId, custom) { Lobby.launch = { mapId, custom, t: 1.6 }; Audio2.sfx('pick'); }
+  startLaunch(mapId, custom) {
+    if (Net.online) { if (!Net.isHost) { toast('Only the host can start a match'); return; } if (Session.mode !== 'party' && Session.mode !== 'creative') Net.dispatch({ t: 'lobbyMode', mode: 'party' }); Net.dispatch({ t: 'prelaunch', mapId, custom: custom ? { name: custom.name, items: custom.items } : null, mode: Session.mode }); return; }
+    Lobby.launch = { mapId, custom, t: 1.6 }; Audio2.sfx('pick');
+  }
   update(time, delta) { try { this.tick(time, delta); } catch (e) { Game.reportError(e); } }
   tick(time, delta) {
     const dt = Math.min(.05, delta / 1000); this.t += dt;
-    const pj = Input.padJoinPressed(); if (pj >= 0 && !Session.roster.some(r => r.input === 'pad' + pj)) { const e = Session.addLocal('pad' + pj); if (e) { toast('🎮 ' + e.name + ' joined!'); Audio2.sfx('pick'); } }
-    if (!Input.kb2Active && !Input.skip && (Input.pressed.has('Enter') || Input.pressed.has('NumpadEnter')) && !Input.uiCapture) { const e = Session.addLocal('kb2'); if (e) { toast('⌨️ ' + e.name + ' joined on keyboard 2 (IJKL + Right-Shift)'); Audio2.sfx('pick'); } }
+    const pj = Net.online ? -1 : Input.padJoinPressed(); if (pj >= 0 && !Session.roster.some(r => r.input === 'pad' + pj)) { const e = Session.addLocal('pad' + pj); if (e) { toast('🎮 ' + e.name + ' joined!'); Audio2.sfx('pick'); } }
+    if (!Net.online && !Input.kb2Active && !Input.skip && (Input.pressed.has('Enter') || Input.pressed.has('NumpadEnter')) && !Input.uiCapture) { const e = Session.addLocal('kb2'); if (e) { toast('⌨️ ' + e.name + ' joined on keyboard 2 (IJKL + Right-Shift)'); Audio2.sfx('pick'); } }
     this.syncPlayers();
     const inputs = this.players.map(p => Input.read(p.entry.input));
-    this.players.forEach((p, i) => { this.view.controlPlayer(p, inputs[i], dt); if (!p.alive || p.y > LH) { p.alive = true; p.x = 140; p.y = LG - PH - 2; this.view.onSpawn(p); } });
+    this.players.forEach((p, i) => { this.view.controlPlayer(p, inputs[i], dt); if (!p.entry.remote && (!p.alive || p.y > LH)) { p.alive = true; p.x = 140; p.y = LG - PH - 2; this.view.onSpawn(p); } });
     this.near = this.players.map((p, i) => {
+      if (p.entry.remote) return null;
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2; let best = null, bd = 1e9;
       for (const a of LOBBY.acts) if (cx > a.x - 20 && cx < a.x + a.w + 20 && cy > a.y - 30 && cy < a.y + a.h + 20) { const d = Math.abs(cx - (a.x + a.w / 2)); if (d < bd) { bd = d; best = a; } }
       if (best && inputs[i].pressed.interact) this.interact(p, best);
@@ -104,15 +108,21 @@ class LobbyScene extends Phaser.Scene {
     });
     if (Lobby.launch) {
       Lobby.launch.t -= dt;
-      if (Input.anyPressed('menu') || Input.anyPressed('undo')) { Lobby.launch = null; toast('Cancelled'); Audio2.sfx('bad'); }
-      else if (Lobby.launch.t <= 0) { const L = Lobby.launch; Lobby.launch = null; Game.launch(Session.mode, L.mapId, L.custom); }
+      const cancel = Input.anyPressed('menu') || Input.anyPressed('undo');
+      if (cancel && Net.online && !Net.isHost) { if (!Lobby.launch.told) { Lobby.launch.told = true; toast('Only the host can cancel'); } }
+      else if (cancel) { if (Net.online) Net.dispatch({ t: 'cancelLaunch' }); else { Lobby.launch = null; toast('Cancelled'); Audio2.sfx('bad'); } }
+      else if (Lobby.launch.t <= 0) {
+        const L = Lobby.launch;
+        if (!Net.online) { Lobby.launch = null; Game.launch(Session.mode, L.mapId, L.custom); }
+        else if (Net.isHost && !L.sent) { L.sent = true; Net.dispatch({ t: 'launch', mode: Session.mode, mapId: L.mapId, custom: L.custom, rules: deepCopy(Save.data.rules), ids: Session.roster.map(e => e.netId) }); }
+      }
     }
     for (const b of this.birds) { b.x += b.vx * dt; b.y += Math.sin(this.t * 2 + b.ph) * 20 * dt; if (b.x < -100) b.x = LW + 80; if (b.x > LW + 100) b.x = -80; b.vx = clamp(b.vx * (1 - dt * .2) + Math.sign(b.vx) * 20 * dt, -260, 260); }
     this.clouds.forEach((c, i) => { c.x = ((i * 330 + this.t * (5 + i)) % (LW + 500)) - 250; });
     this.randImg.setTexture('thumb_' + MAPS[Math.floor(this.t * 1.5) % MAPS.length].id).setDisplaySize(148, 98);
     this.bell.angle = this.bell.angle * .98 + Math.sin(this.t * 3) * .1;
     const fz = Math.min(this.rig.sw / LW, this.rig.shH / LH);
-    let cx = LW / 2, cy = LH / 2; if (this.players.length) { cx = this.players.reduce((a, p) => a + p.x, 0) / this.players.length; cy = this.players.reduce((a, p) => a + p.y, 0) / this.players.length; }
+    let cx = LW / 2, cy = LH / 2; const follow = Net.online ? this.players.filter(p => !p.entry.remote) : this.players; if (follow.length) { cx = follow.reduce((a, p) => a + p.x, 0) / follow.length; cy = follow.reduce((a, p) => a + p.y, 0) / follow.length; }
     this.rig.set(lerp(LW / 2, cx, .35), lerp(LH / 2, cy, .35), fz * (this.rig.sw < 900 ? 1.7 : 1.12)); this.rig.clampTo({ x: -40, y: -40, w: LW + 80, h: LH + 60 });
     this.rig.update(dt);
     this.view.update(dt, this.t);
@@ -160,20 +170,20 @@ class LobbyScene extends Phaser.Scene {
       const x = 10 * u + (i % 4) * 150 * u, y = 10 * u + Math.floor(i / 4) * 46 * u;
       rr(ctx, x, y, 144 * u, 40 * u, 10); ctx.fillStyle = 'rgba(255,246,230,.92)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = e.color; ctx.stroke();
       hudPortrait(ctx, x + 20 * u, y + 20 * u, 15 * u, e);
-      txt(ctx, (i === 0 ? '👑 ' : '') + e.name.slice(0, 11), x + 40 * u, y + 13 * u, 12 * u, INK, 'left', null, 600);
-      const dev = e.input === 'kb1' ? '⌨ Keyboard 1' : e.input === 'kb2' ? '⌨ Keyboard 2' : e.input.startsWith('pad') ? '🎮 Pad ' + (+e.input.slice(3) + 1) : '🌐 Online';
+      txt(ctx, (i === 0 ? '👑 ' : '') + e.name.slice(0, 11) + (Net.online && !e.remote ? ' (you)' : ''), x + 40 * u, y + 13 * u, 12 * u, INK, 'left', null, 600);
+      const dev = Net.online ? (e.remote ? '🌐 Online' : '🏠 This device') : e.input === 'kb1' ? '⌨ Keyboard 1' : e.input === 'kb2' ? '⌨ Keyboard 2' : e.input.startsWith('pad') ? '🎮 Pad ' + (+e.input.slice(3) + 1) : '🌐 Online';
       txt(ctx, dev + ' · ' + (e.ready ? '✔' : '…'), x + 40 * u, y + 29 * u, 10 * u, INK, 'left', null, 500);
     });
     const bw = 190 * u, bx = SW - bw - 10 * u, by = 10 * u, mo = this.modeObj();
     rr(ctx, bx, by, bw, 40 * u, 10); ctx.fillStyle = 'rgba(255,246,230,.92)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
     txt(ctx, mo.icon + ' ' + mo.name + ' mode', bx + bw / 2, by + 20 * u, 16 * u, '#e8573f', 'center', null, 700);
-    const h = SH - 30 * u; rr(ctx, SW / 2 - 330 * u, h - 14 * u, 660 * u, 28 * u, 12); ctx.fillStyle = 'rgba(58,42,30,.7)'; ctx.fill();
-    txt(ctx, 'Walk to a map card and press ' + this.keyFor(this.players[0] || { entry: { input: 'kb1' } }, 'interact') + ' to play · Friends: press A on a controller or Enter to join', SW / 2, h, 13 * u, '#fff', 'center', null, 600);
+    const h = SH - 30 * u; if (Net.online) { const hs = Net.isHost ? 'You\'re the host — walk to a map card and press ' + this.keyFor(this.players.find(p => !p.entry.remote) || { entry: { input: 'kb1' } }, 'interact') + ' to start' : 'Waiting for ' + Session.host().name + ' (host) to pick a map — explore the treehouse!'; const wv = Math.min(SW - 20, (hs.length * 7.2 + 40) * u), hy = SH - 96 * u; rr(ctx, SW / 2 - wv / 2, hy - 14 * u, wv, 28 * u, 12); ctx.fillStyle = 'rgba(58,42,30,.7)'; ctx.fill(); txt(ctx, hs, SW / 2, hy, 13 * u, '#fff', 'center', null, 600); } else { rr(ctx, SW / 2 - 330 * u, h - 14 * u, 660 * u, 28 * u, 12); ctx.fillStyle = 'rgba(58,42,30,.7)'; ctx.fill();
+    txt(ctx, 'Walk to a map card and press ' + this.keyFor(this.players[0] || { entry: { input: 'kb1' } }, 'interact') + ' to play · Friends: press A on a controller or Enter to join', SW / 2, h, 13 * u, '#fff', 'center', null, 600); }
     if (Lobby.launch) {
       const m = MAP_BY_ID[Lobby.launch.mapId];
       panel(ctx, SW / 2 - 240 * u, SH / 2 - 60 * u, 480 * u, 120 * u, '#fff1c4');
       txt(ctx, this.modeObj().icon + ' ' + this.modeObj().name + ' on ' + (Lobby.launch.custom ? Lobby.launch.custom.name : m.name), SW / 2, SH / 2 - 20 * u, 22 * u, '#e8573f');
-      txt(ctx, 'Starting in ' + Math.ceil(Lobby.launch.t) + '…   (Esc / B to cancel)', SW / 2, SH / 2 + 22 * u, 16 * u, INK, 'center', null, 600);
+      txt(ctx, Lobby.launch.t > 0 ? 'Starting in ' + Math.ceil(Lobby.launch.t) + '…' + (!Net.online || Net.isHost ? '   (Esc / B to cancel)' : '') : 'Starting…', SW / 2, SH / 2 + 22 * u, 16 * u, INK, 'center', null, 600);
     }
   }
   drawCardInfo(ctx, c, p, u) {
