@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ultimate Horse Chicken</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#3a2a1e; --paper:#fff6e6; --paper2:#f6e6c8; --wood:#b07a45; --wood2:#8a5a30;
+  --accent:#e8573f; --good:#3fae5a; --bad:#d8433a; --sky:#a8e6ef; --ui-scale:1;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--sky);font-family:'Fredoka','Trebuchet MS','Comic Sans MS',sans-serif;color:var(--ink);user-select:none;-webkit-user-select:none}
+canvas#c{position:fixed;inset:0;display:block;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:5}
+#ui > *{pointer-events:auto}
+.backdrop{position:fixed;inset:0;background:rgba(40,28,18,.35);display:flex;align-items:center;justify-content:center;z-index:10}
+.panel{background:var(--paper);border:4px solid var(--ink);border-radius:20px;box-shadow:0 8px 0 rgba(58,42,30,.35),0 18px 40px rgba(0,0,0,.25);padding:18px 22px;max-width:min(920px,94vw);max-height:90vh;overflow:auto;transform:scale(var(--ui-scale));transform-origin:center;animation:pop .18s ease-out}
+@keyframes pop{from{transform:scale(calc(var(--ui-scale)*.85));opacity:0}to{transform:scale(var(--ui-scale));opacity:1}}
+.panel h2{margin:0 0 10px;font-size:30px;display:flex;align-items:center;gap:10px}
+.panel h3{margin:14px 0 6px;font-size:19px;border-bottom:2px dashed rgba(58,42,30,.3);padding-bottom:3px}
+.panel p{margin:6px 0;line-height:1.35}
+.small{font-size:13px;opacity:.75}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.grid{display:grid;gap:8px}
+.btn{font:inherit;font-weight:600;font-size:17px;background:#ffd56b;color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:7px 14px;cursor:pointer;box-shadow:0 3px 0 var(--ink);transition:transform .06s}
+.btn:hover{filter:brightness(1.05)}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.btn.alt{background:#bfe8ff}.btn.red{background:#ff9e8c}.btn.green{background:#a9e59a}.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.f:focus,.f.focus{outline:4px solid #ff5fa2;outline-offset:2px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tab{font:inherit;font-weight:600;padding:5px 12px;border:3px solid var(--ink);border-radius:10px 10px 4px 4px;background:var(--paper2);cursor:pointer}
+.tab.on{background:#ffd56b}
+label.set{display:grid;grid-template-columns:minmax(150px,1fr) 180px 64px;align-items:center;gap:10px;margin:5px 0;font-weight:500}
+label.set input[type=range]{width:100%;accent-color:#e8573f}
+label.set select,input.txt{font:inherit;border:3px solid var(--ink);border-radius:8px;padding:3px 6px;background:#fff}
+.val{font-weight:700;text-align:right}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.card{border:3px solid var(--ink);border-radius:12px;background:#fff;padding:6px;text-align:center;cursor:pointer;position:relative}
+.card.on{background:#ffe9a8;box-shadow:0 0 0 3px #ff5fa2 inset}
+.card.locked{opacity:.5;cursor:not-allowed}
+.card canvas{display:block;margin:0 auto}
+.card .nm{font-weight:600;font-size:14px}
+.tag{display:inline-block;font-size:12px;font-weight:700;background:var(--ink);color:#fff;border-radius:6px;padding:1px 6px;margin:1px}
+.ach{display:flex;gap:10px;align-items:center;border:2px solid rgba(58,42,30,.3);border-radius:10px;padding:6px 8px;margin:4px 0;background:#fff}
+.ach.no{opacity:.45;filter:grayscale(1)}
+.ach .ico{font-size:26px;width:34px;text-align:center}
+table.stats{border-collapse:collapse;width:100%}
+table.stats td{padding:4px 8px;border-bottom:1px dashed rgba(58,42,30,.25)}
+table.stats td:last-child{text-align:right;font-weight:700}
+.bind{font:inherit;font-weight:600;min-width:120px;padding:4px 8px;border:3px solid var(--ink);border-radius:8px;background:#fff;cursor:pointer}
+.bind.wait{background:#ffd56b}
+#toasts{position:fixed;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:30;pointer-events:none}
+.toast{background:var(--paper);border:3px solid var(--ink);border-radius:12px;padding:8px 14px;font-weight:600;box-shadow:0 4px 0 rgba(58,42,30,.3);animation:tin .25s ease-out;max-width:340px}
+.toast.gold{background:#ffe9a8}
+@keyframes tin{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+#editbar{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:var(--paper);border:3px solid var(--ink);border-radius:16px;padding:6px 8px;z-index:6;max-width:98vw;flex-wrap:wrap;justify-content:center}
+#editbar .btn{font-size:14px;padding:4px 10px}
+#palette{position:fixed;left:8px;top:60px;bottom:70px;width:178px;overflow:auto;background:var(--paper);border:3px solid var(--ink);border-radius:14px;padding:6px;z-index:6}
+#palette .pi{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+#palette .pi.on{background:#ffd56b}
+#palette .pi canvas{flex:none}
+#palette .cat{font-size:12px;font-weight:700;opacity:.6;margin:6px 4px 2px;text-transform:uppercase}
+.code{font-family:ui-monospace,Consolas,monospace;font-size:12px;width:100%;min-height:80px;border:3px solid var(--ink);border-radius:8px;padding:6px;word-break:break-all}
+.kbd{display:inline-block;border:2px solid var(--ink);border-bottom-width:4px;border-radius:6px;padding:0 6px;font-weight:700;font-size:13px;background:#fff;margin:0 2px}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700;background:var(--sky);z-index:50}
+@media (max-width:700px){label.set{grid-template-columns:1fr 120px 50px}.panel h2{font-size:24px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"></div>
+<div id="toasts"></div>
+<div id="loading">Loading Ultimate Horse Chicken…</div>
+<script src="vendor/phaser.min.js"></script>
+<script src="js/01_util.js"></script>
+<script src="js/02_input.js"></script>
+<script src="js/03_audio.js"></script>
+<script src="js/04_art_a.js"></script>
+<script src="js/04_art_b.js"></script>
+<script src="js/05_items_a.js"></script>
+<script src="js/05_items_b.js"></script>
+<script src="js/05_items_art.js"></script>
+<script src="js/06_maps_a.js"></script>
+<script src="js/06_maps_paint.js"></script>
+<script src="js/06_maps_bg.js"></script>
+<script src="js/06_maps_b.js"></script>
+<script src="js/07_logic.js"></script>
+<script src="js/07_textures.js"></script>
+<script src="js/08_engine.js"></script>
+<script src="js/08_world.js"></script>
+<script src="js/08_items_view.js"></script>
+<script src="js/09_nav.js"></script>
+<script src="js/09_hud.js"></script>
+<script src="js/10_match_a.js"></script>
+<script src="js/10_match_b.js"></script>
+<script src="js/10_match_c.js"></script>
+<script src="js/11_progress.js"></script>
+<script src="js/11_modes.js"></script>
+<script src="js/12_lobby_a.js"></script>
+<script src="js/12_lobby_b.js"></script>
+<script src="js/14_ui_a.js"></script>
+<script src="js/14_ui_b.js"></script>
+<script src="js/14_ui_c.js"></script>
+<script src="js/13_main.js"></script>
+</body>
+</html>

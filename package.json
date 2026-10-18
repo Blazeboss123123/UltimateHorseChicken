@@ -1,0 +1,13 @@
+{
+  "name": "ultimate-horse-chicken",
+  "version": "1.0.0",
+  "description": "Build-then-race party platformer for friends, made with Phaser 3.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node tools/build-single.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "private": true
+}
