@@ -11,7 +11,7 @@
 //   {t:'join', m}  {t:'leave', id}  {t:'look', id, name, char, hat}
 //   {t:'msg', from, m}      a game message relayed from another player
 //   {t:'ps', id, s}         another player's position/animation state
-//   {t:'pong', c}  {t:'error', msg}  {t:'closed', reason}
+//   {t:'pong', c}  {t:'error', msg}  {t:'closed', reason}  {t:'room', state}  (host started/ended a match)
 // Client -> server
 //   {t:'cast', m, to?}  to = undefined (everyone else) | 'host' | member id
 //   {t:'ps', s}  {t:'look', name, char, hat}  {t:'state', v:'lobby'|'match'} (host only)  {t:'ping', c}
@@ -31,6 +31,7 @@ class Rooms {
     this.rooms = new Map();
     this.seq = 0;
     this.log = opts.log || (() => {});
+    this.build = opts.build | 0; // the game version the server is serving; older pages are asked to refresh
     this.stats = { created: 0, joined: 0, msgs: 0 };
     this.timer = setInterval(() => this.heartbeat(), 20000);
     if (this.timer.unref) this.timer.unref();
@@ -57,7 +58,7 @@ class Rooms {
       if (!member) {
         if (msg.t !== 'hello') return;
         clearTimeout(helloTimer);
-        if ((msg.v | 0) !== PROTO) return fail('Your game is out of date — refresh the page.');
+        if ((msg.v | 0) !== PROTO || (this.build && (msg.build | 0) !== this.build)) return fail('There\'s a newer version of the game — refresh this page (Ctrl+Shift+R, or pull down on a phone) and try again.');
         if (op === 'create') {
           let c; do c = makeCode(); while (this.rooms.has(c));
           room = { code: c, members: [], state: 'lobby', created: Date.now() };
@@ -73,7 +74,7 @@ class Rooms {
         let name = cleanName(msg.name); if (room.members.some(m => m.name === name)) name = (name.slice(0, 13) + ' ' + (room.members.length + 1));
         member = { id: 'p' + (++this.seq).toString(36), name, char: cleanKey(msg.char, 'horse'), hat: cleanKey(msg.hat, 'none'), colorIdx: ci, conn };
         room.members.push(member);
-        this.send(member, { t: 'welcome', id: member.id, code: room.code, hostId: room.members[0].id, members: room.members.map(m => this.public(m)), proto: PROTO });
+        this.send(member, { t: 'welcome', id: member.id, code: room.code, hostId: room.members[0].id, members: room.members.map(m => this.public(m)), proto: PROTO, state: room.state });
         this.others(room, member, { t: 'join', m: this.public(member) });
         this.log('join', { code: room.code, id: member.id, name, players: room.members.length });
         return;
@@ -94,7 +95,7 @@ class Rooms {
           this.others(room, member, { t: 'look', id: member.id, name: member.name, char: member.char, hat: member.hat });
           return;
         }
-        case 'state': if (member === room.members[0] && (msg.v === 'lobby' || msg.v === 'match')) room.state = msg.v; return;
+        case 'state': if (member === room.members[0] && (msg.v === 'lobby' || msg.v === 'match') && room.state !== msg.v) { room.state = msg.v; this.others(room, member, { t: 'room', state: msg.v }); } return;
         case 'ping': this.send(member, { t: 'pong', c: msg.c }); return;
       }
     });

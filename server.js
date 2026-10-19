@@ -13,7 +13,8 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascr
 
 function startServer(port = process.env.PORT || 3000, opts = {}) {
   const started = Date.now();
-  const rooms = new Rooms({ log: opts.quiet ? null : (ev, d) => console.log(JSON.stringify({ ev, ...d })) });
+  let build = 0; try { const m = /[?&]v=(\d+)/.exec(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')); if (m) build = +m[1]; } catch (e) { }
+  const rooms = new Rooms({ build, log: opts.quiet ? null : (ev, d) => console.log(JSON.stringify({ ev, ...d })) });
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/status') {

@@ -2,6 +2,8 @@
 // One friend hosts (their browser runs the match rules), everyone else joins with the 6-character
 // game code. The server (server.js) only keeps the rooms and passes messages along.
 const NET_PROTO = 1;
+// which version of the game this page is (from the ?v= on the script tags) — the server turns away out-of-date pages
+const NET_BUILD = (() => { try { for (const sc of document.scripts) { const m = /[?&]v=(\d+)/.exec(sc.src || ''); if (m) return +m[1]; } } catch (e) { } return 0; })();
 const PS_STATES = ['idle', 'run', 'jump', 'fall', 'wall', 'climb', 'stun', 'dance'];
 const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // actions a guest may ask the host to perform (always about their own player)
@@ -31,7 +33,7 @@ const Online = {
       const finish = (err, val) => { if (settled) return; settled = true; clearTimeout(slow); clearTimeout(give); if (err) { if (this.ws === ws) this.ws = null; try { ws.close(); } catch (e) { } reject(err); } else resolve(val); };
       const slow = setTimeout(() => { if (onSlow) onSlow(); }, 3500);
       const give = setTimeout(() => finish(new Error("Couldn't reach the game server. Free servers nap when nobody's playing — wait a moment and try again.")), 70000);
-      ws.onopen = () => { const e = Session.local() || Session.roster[0] || Save.data.slots[0]; ws.send(JSON.stringify({ t: 'hello', v: NET_PROTO, name: e.name, char: e.char, hat: e.hat })); };
+      ws.onopen = () => { const e = Session.local() || Session.roster[0] || Save.data.slots[0]; ws.send(JSON.stringify({ t: 'hello', v: NET_PROTO, build: NET_BUILD, name: e.name, char: e.char, hat: e.hat })); };
       ws.onmessage = ev => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (!settled) { if (m.t === 'welcome') { this.onWelcome(m); finish(null, m); } else if (m.t === 'error') finish(new Error(m.msg)); return; }
@@ -43,7 +45,8 @@ const Online = {
   },
   onWelcome(m) {
     this.id = m.id; this.code = m.code; this.hostId = m.hostId; this.members = m.members.slice(); this.states.clear(); this.pending = []; this.closedReason = null;
-    Net.online = true; Net.isHost = m.hostId === m.id; Net.rules = null; Net.inMatch = false;
+    Net.online = true; Net.isHost = m.hostId === m.id; Net.rules = null; Net.inMatch = false; Net.syncSnap = null;
+    this.wantSync = !Net.isHost && m.state === 'match'; this.syncT = 0;
     this.buildRoster();
     try { history.replaceState(null, '', location.pathname + '?code=' + m.code); } catch (e) { }
     NetBar.show();
@@ -79,9 +82,14 @@ const Online = {
       case 'join': {
         this.members.push(m.m); toast('👋 <b>' + esc(m.m.name) + '</b> joined the game' + (Net.inMatch ? ' — they\'ll jump in next round' : '')); Audio2.sfx('pick');
         if (!Net.inMatch) this.buildRoster();
-        else if (Net.isHost && Match.M) { Match.M.pendingJoin.push(m.m.id); this.send({ t: 'cast', to: m.m.id, m: Match.snapshot() }); }
+        else if (Net.isHost) this.sendSync(m.m.id);
         return;
       }
+      case 'room': // the host started or ended a match
+        if (Net.isHost) return;
+        if (m.state === 'lobby') this.wantSync = false;
+        else if (m.state === 'match' && !Net.inMatch && !Match.M) { this.wantSync = true; this.syncT = 1; }
+        return;
       case 'leave': {
         const mem = this.members.find(x => x.id === m.id); this.members = this.members.filter(x => x.id !== m.id); this.states.delete(m.id);
         if (Net.inMatch && Match.M) { const p = Match.M.players.find(q => q.entry.netId === m.id); if (p && Net.isHost) Net.dispatch({ t: 'gone', pi: p.idx }); }
@@ -97,8 +105,19 @@ const Online = {
       case 'error': toast('⚠️ ' + esc(m.msg)); return;
     }
   },
+  // host: send someone who isn't in the match yet everything so far (they watch, then join next round)
+  sendSync(id) {
+    if (!Net.isHost || !this.members.some(m => m.id === id)) return;
+    const M = Match.M;
+    if (!Net.inMatch) { this.send({ t: 'cast', to: id, m: { t: 'noMatch' } }); return; }
+    if (!M) return; // between screens — they'll ask again in a moment
+    if (!M.players.some(p => p.entry.netId === id) && !M.pendingJoin.includes(id)) M.pendingJoin.push(id);
+    this.send({ t: 'cast', to: id, m: Match.snapshot() });
+  },
   onGameMsg(from, a) {
     if (!a || typeof a.t !== 'string') return;
+    if (a.t === 'needSync') { if (Net.isHost) this.sendSync(from); return; }
+    if (a.t === 'noMatch') { if (from === this.hostId) this.wantSync = false; return; }
     if (a.req) {
       if (!Net.isHost || !GUEST_REQUESTS.has(a.t)) return;
       delete a.req;
@@ -119,6 +138,10 @@ const Online = {
   // Each frame: stream our own player's position, keep the ping fresh.
   tick(dt) {
     if (!Net.online || !this.ws) return;
+    if (this.wantSync) { // joined while a match is on: keep asking the host for it until we're in
+      if (Net.isHost || Match.M || Net.syncSnap) this.wantSync = false;
+      else if ((this.syncT -= dt) <= 0) { this.syncT = 2; this.send({ t: 'cast', to: 'host', m: { t: 'needSync' } }); }
+    }
     this.pingT -= dt; if (this.pingT <= 0) { this.pingT = 3; this.send({ t: 'ping', c: performance.now() }); }
     this.psT -= dt; if (this.psT > 0) return; this.psT = 1 / 20;
     const sc = Game.worldScene(); if (!sc) return;
@@ -149,7 +172,7 @@ Net.on('launch', a => {
     Net.rules = a.rules || deepCopy(DEFAULT_RULES);
     const byId = new Map(Session.roster.map(e => [e.netId, e]));
     const list = (a.ids || []).map(id => byId.get(id)).filter(Boolean);
-    if (!list.some(e => !e.remote)) { toast('A match started just as you arrived — hang out in the treehouse until the next one!'); return true; }
+    if (!list.some(e => !e.remote)) { toast('A match started just as you arrived — getting you in…'); Online.wantSync = true; Online.syncT = 1; return true; }
     Session.roster = list;
     Net.inMatch = true;
     if (Net.isHost) Online.send({ t: 'state', v: 'match' });
@@ -192,7 +215,8 @@ const NetBar = {
 
 // Joining in the middle of a match: the host sends us the match so far; we watch until the next round.
 Net.on('sync', a => {
-  if (!Net.online || Net.isHost || Match.M) return false;
+  if (!Net.online || Net.isHost || Match.M || Net.syncSnap) return false;
+  Online.wantSync = false;
   Net.rules = a.rules || deepCopy(DEFAULT_RULES);
   Session.roster = (a.ids || []).map(id => Online.entryFor(id)).filter(Boolean);
   Net.inMatch = true; Net.syncSnap = a; Session.mode = a.mode; Session.mapId = a.mapId;

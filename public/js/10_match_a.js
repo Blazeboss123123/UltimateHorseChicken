@@ -108,7 +108,7 @@ const Match = {
   snapshot() {
     const M = this.M, W = M.W;
     return { t: 'sync', mode: M.mode, mapId: M.map.id, custom: M.custom ? { name: M.custom.name, items: M.custom.items } : null, rules: M.rules, ids: M.players.map(p => p.entry.netId), round: M.round,
-      scores: M.scores, gone: M.players.filter(p => p.gone).map(p => p.idx), items: this.itemList() };
+      scores: M.scores, gone: M.players.filter(p => p.gone).map(p => p.idx), items: this.itemList(), hard: M.hardStreak || 0 };
   },
   itemList() { return this.M.W.items.filter(i => !i.mapOwned).map(i => [i.id, Math.round(i.x), Math.round(i.y), i.rot, i.uid, i.attach || null, i.owner, i.fixed ? 1 : 0]); },
   setItems(list) {
@@ -121,7 +121,7 @@ const Match = {
   applySnapshot(a) {
     const M = this.M; M.round = a.round | 0; M.scores = M.players.map((_, i) => a.scores[i] ? { total: a.scores[i].total, segs: a.scores[i].segs.slice() } : { total: 0, segs: [] });
     for (const i of a.gone || []) if (M.players[i]) { M.players[i].gone = true; }
-    this.setItems(a.items); M.phase = 'spectate'; M.timer = 0;
+    this.setItems(a.items); M.hardStreak = a.hard | 0; M.phase = 'spectate'; M.timer = 0;
   },
   hostAddJoiners() {
     const M = this.M; const ids = M.pendingJoin.filter(id => Online.members.some(m => m.id === id) && !M.players.some(p => p.entry.netId === id)); M.pendingJoin = [];
@@ -157,6 +157,14 @@ const Match = {
     const a = { t: 'round', round, order: o };
     if (R.assign === 'random' && M.mode === 'party') { a.hands = M.players.map(() => []); for (const pi of o) a.hands[pi] = rollItems(R.perPlayer); }
     else a.box = M.mode === 'creative' ? ITEM_ORDER.filter(id => weightOf(id) > 0) : rollItems(o.length * R.perPlayer + R.extraItems);
+    // Too hard round after round? Put bombs in so people can blow the blockers away.
+    const hs = M.hardStreak || 0;
+    if (hs > 0 && M.mode === 'party') {
+      const want = Math.min(o.length, hs === 1 ? 1 : hs === 2 ? Math.max(2, Math.ceil(o.length / 2)) : o.length);
+      if (a.box) { let have = a.box.filter(id => id === 'bomb').length; while (have < want) { a.box.splice(Math.floor(Math.random() * (a.box.length + 1)), 0, 'bomb'); have++; } }
+      else if (a.hands) { const ps = shuffle(o.slice()); for (let k = 0; k < want && k < ps.length; k++) { const h = a.hands[ps[k]]; if (!h.includes('bomb')) h[0] = 'bomb'; } }
+      a.bombs = want;
+    }
     Net.dispatch(a);
   },
   applyRound(a) {
@@ -164,6 +172,7 @@ const Match = {
     M.round = a.round; M.order = a.order.slice(); M.hands = M.players.map((_, i) => ((a.hands && a.hands[i]) || []).slice());
     M.W.projs = []; for (const it of M.W.items) it.st = {}; M.coinOwner = {};
     M.players.forEach(p => { this.hide(p); p.finished = false; p.coin = null; });
+    if (a.bombs) M.msg = { s: a.bombs > 1 ? '💣 Too hard — ' + a.bombs + ' bombs in the box!' : '💣 Too hard — a bomb is in the box!', t: 4 };
     if (a.hands) { M.phase = 'dealt'; M.timer = 2.4; Audio2.sfx('pick'); }
     else { M.box = a.box.map(id => ({ id, by: -1 })); this.startPick(); }
     Audio2.play('build');
@@ -305,6 +314,7 @@ const Match = {
     let xp = 0;
     aw.forEach((list, i) => { const h = R.handicap[i] == null ? 1 : R.handicap[i]; for (const a of list) { a.pts = Math.round(a.pts * h); xp += a.pts; } });
     M.roundAward = { status, aw, before: M.scores.map(s => s.total) };
+    M.hardStreak = status === 'hard' ? (M.hardStreak || 0) + 1 : 0;
     aw.forEach((list, i) => { for (const a of list) { M.scores[i].total += a.pts; M.scores[i].segs.push({ k: a.k, pts: a.pts, round: M.round }); } });
     Save.data.stats.rounds++; Save.data.stats.xp += xp + 10;
     if (status === 'easy') { M.banner = { s: 'TOO EASY!', sub: 'Everyone made it — no points', t: 2.5 }; Audio2.sfx('toohard'); }
