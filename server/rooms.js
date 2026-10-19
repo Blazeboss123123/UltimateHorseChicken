@@ -67,7 +67,6 @@ class Rooms {
           room = this.rooms.get(code);
           if (!room) return fail('No game with the code ' + code + '. Check it with your friend.');
           if (room.members.length >= MAX_PLAYERS) return fail('That game is full (8 players).');
-          if (room.state !== 'lobby') return fail('That game is in the middle of a match. Try again when they are back in the treehouse.');
           this.stats.joined++;
         } else return fail('Unknown request.');
         const used = new Set(room.members.map(m => m.colorIdx)); let ci = 0; while (used.has(ci)) ci++;

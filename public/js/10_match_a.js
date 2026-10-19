@@ -91,7 +91,7 @@ const Match = {
       order: [], box: [], hands: players.map(() => []), pickCur: [], builders: null, previews: [],
       raceT: 0, countdown: 0, finishOrder: [], deaths: [], coinsGot: [], roundAward: null, resultsT: 0, banner: null, winners: null, msg: null,
       t: 0, custom, boxRects: null,
-      host: !Net.online || Net.isHost, me: players.find(p => !p.entry.remote) || null, done: {}, coinOwner: {}, curT: 0,
+      host: !Net.online || Net.isHost, me: players.find(p => !p.entry.remote) || null, done: {}, coinOwner: {}, curT: 0, pendingJoin: [],
     };
     W.onDeath = (p, cause) => this.onDeath(p, cause);
     W.onFinish = p => this.onFinish(p);
@@ -101,7 +101,47 @@ const Match = {
     Audio2.play('build');
     Save.data.recent = [mapId].concat(Save.data.recent.filter(m => m !== mapId)).slice(0, 3); Save.write();
     if (players.length === 1 && !Net.online) toast('Solo practice — friends can join from the lobby couch!');
+    if (Net.syncSnap) { this.applySnapshot(Net.syncSnap); Net.syncSnap = null; }
     Online.flushPending();
+  },
+  // ---------- joining mid-match ----------
+  snapshot() {
+    const M = this.M, W = M.W;
+    return { t: 'sync', mode: M.mode, mapId: M.map.id, custom: M.custom ? { name: M.custom.name, items: M.custom.items } : null, rules: M.rules, ids: M.players.map(p => p.entry.netId), round: M.round,
+      scores: M.scores, gone: M.players.filter(p => p.gone).map(p => p.idx), items: this.itemList() };
+  },
+  itemList() { return this.M.W.items.filter(i => !i.mapOwned).map(i => [i.id, Math.round(i.x), Math.round(i.y), i.rot, i.uid, i.attach || null, i.owner, i.fixed ? 1 : 0]); },
+  setItems(list) {
+    const M = this.M, W = M.W;
+    for (const it of W.items.filter(i => !i.mapOwned)) M.view.removeItem(it);
+    W.items = W.items.filter(i => i.mapOwned);
+    for (const c of list || []) { const it = makeItem(c[0], c[1], c[2], c[3], c[6] == null ? -1 : c[6]); it.uid = c[4]; it.fixed = !!c[7]; const att = cleanAttach(c[5]); if (att) it.attach = att; W.items.push(it); }
+    stepWorld(W, 0); for (const it of W.items) M.view.addItem(it);
+  },
+  applySnapshot(a) {
+    const M = this.M; M.round = a.round | 0; M.scores = M.players.map((_, i) => a.scores[i] ? { total: a.scores[i].total, segs: a.scores[i].segs.slice() } : { total: 0, segs: [] });
+    for (const i of a.gone || []) if (M.players[i]) { M.players[i].gone = true; }
+    this.setItems(a.items); M.phase = 'spectate'; M.timer = 0;
+  },
+  hostAddJoiners() {
+    const M = this.M; const ids = M.pendingJoin.filter(id => Online.members.some(m => m.id === id) && !M.players.some(p => p.entry.netId === id)); M.pendingJoin = [];
+    if (ids.length) Net.dispatch({ t: 'addPlayers', ids, round: M.round, scores: M.scores, items: this.itemList() });
+  },
+  applyAddPlayers(a) {
+    const M = this.M; if (!M) return false;
+    let added = 0;
+    for (const id of a.ids) {
+      if (M.players.some(p => p.entry.netId === id)) continue;
+      const e = Online.entryFor(id); if (!e) continue;
+      if (!Session.roster.includes(e)) Session.roster.push(e);
+      const p = newPlayer(e, M.players.length); M.players.push(p); M.scores.push({ total: 0, segs: [] }); M.hands.push([]); added++;
+    }
+    if (!added && M.phase !== 'spectate') return true;
+    M.W.players = M.players; M.view.setPlayers(M.players); M.players.forEach(p => this.hide(p));
+    M.me = M.players.find(p => !p.entry.remote) || null;
+    if (M.phase === 'spectate') { M.round = a.round | 0; M.scores = M.players.map((_, i) => a.scores[i] ? { total: a.scores[i].total, segs: a.scores[i].segs.slice() } : { total: 0, segs: [] }); this.setItems(a.items); M.phase = 'intro'; M.timer = 99; }
+    for (const p of M.players.slice(-added)) if (added) toast('🎉 ' + esc(p.name) + ' is in!');
+    return true;
   },
   hide(p) { p.alive = false; p.deathT = 9; if (p.body) p.body.enable = false; if (p.spr) p.spr.setVisible(false); if (p.tag) p.tag.setVisible(false); },
   // The host makes each timed decision exactly once (guests never do).
@@ -109,6 +149,7 @@ const Match = {
   active() { return this.M.players.filter(p => !p.gone); },
   // ---------- rounds ----------
   hostRound() {
+    if (Net.online) this.hostAddJoiners();
     const M = this.M, R = M.rules, n = M.players.length, round = M.round + 1;
     let o = [...Array(n).keys()];
     if (R.order === 'shuffle') shuffle(o); else if (R.order === 'rotate') o = o.map((_, i) => (i + round - 1) % n);
@@ -182,7 +223,7 @@ const Match = {
     Audio2.sfx('click'); if (!M.players[a.pi].entry.remote) Save.data.stats.placed--;
     return true;
   },
-  applyRaceStart(a) { const M = this.M; if (!M || M.phase !== 'build' || a.round !== M.round) return false; this.beginRace(); return true; },
+  applyRaceStart(a) { const M = this.M; if (M && M.phase === 'spectate') { if (a.items) this.setItems(a.items); return true; } if (!M || M.phase !== 'build' || a.round !== M.round) return false; this.beginRace(); return true; },
   // ---------- race ----------
   beginRace() {
     const M = this.M, W = M.W;
@@ -309,6 +350,7 @@ Net.on('coin', a => Match.applyCoin(a));
 Net.on('endRace', a => Match.applyEndRace(a));
 Net.on('podium', a => Match.applyPodium(a));
 Net.on('gone', a => Match.applyGone(a));
+Net.on('addPlayers', a => Match.applyAddPlayers(a));
 Net.on('toLobby', () => { Game.toLobby(); return true; });
 // cosmetic messages straight from the player concerned
 Net.on('cur', a => { const M = Match.M; if (!M || M.phase !== 'build' || !M.builders) return; const B = M.builders[a.pi]; if (!B || !M.players[a.pi].entry.remote) return; B.cx = +a.x || 0; B.cy = +a.y || 0; B.rot = a.r & 3; });

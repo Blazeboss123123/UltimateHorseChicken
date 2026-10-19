@@ -20,7 +20,7 @@ function itemCore(it) {
 function localToWorld(it, lx, ly) { const d = ITEMS[it.id]; const p = rotPoint(lx, ly, d.w, d.h, it.rot); return [it.x + p[0] * T, it.y + p[1] * T]; }
 function staticRects(it, list, extra) {
   const d = ITEMS[it.id], out = [];
-  for (const s of list) { const r = rotRect(s[0], s[1], s[2], s[3], d.w, d.h, it.rot); out.push(Object.assign({ x: it.x + r.x * T, y: it.y + r.y * T, w: r.w * T, h: r.h * T, ref: it, owner: it.owner, src: d.name }, s[4] || {}, extra || {})); }
+  for (const s of list) { const r = rotRect(s[0], s[1], s[2], s[3], d.w, d.h, it.rot); const o = Object.assign({ x: it.x + r.x * T, y: it.y + r.y * T, w: r.w * T, h: r.h * T, ref: it, owner: it.owner, src: d.name }, s[4] || {}, extra || {}); if (o.surf === 'honey') o.hn = rotDir(0, -1, it.rot); out.push(o); } // hn = which way the honey side faces
   return out;
 }
 
@@ -61,12 +61,13 @@ defItem('hay', {
   draw(ctx, it) { withRot(ctx, it, this, (w, h) => { rr(ctx, 1, 1, w - 2, h - 2, 18); fillStroke(ctx, '#f2cf4a', 2.5); ctx.strokeStyle = '#c99e25'; ctx.lineWidth = 2; for (let i = 1; i < 6; i++) { ctx.beginPath(); ctx.moveTo(6, i * h / 6); ctx.quadraticCurveTo(w / 2, i * h / 6 + 4, w - 6, i * h / 6); ctx.stroke(); } }); },
 });
 defItem('ice', {
-  name: 'Ice Block', cat: 'block', w: 2, h: 1, weight: 2, rot: 'none', desc: 'Slippery! Hard to stop on.',
+  name: 'Ice Block', cat: 'block', w: 2, h: 1, weight: 2, rot: 'none', desc: 'Slippery on top — and the icicles underneath are sharp!',
   solids: [[0, 0, 2, 1, { surf: 'ice' }]],
+  dyn(it) { it._h = [hz(it, 'r', { x: it.x + 5, y: it.y + T, w: 2 * T - 10, h: 10, src: 'icicles' })]; },
   draw(ctx, it) { withRot(ctx, it, this, (w, h) => { wob(ctx, 0, 0, w, h, 21); fillStroke(ctx, '#bfefff', 2.5); ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(5, 5, w * .4, 3); ctx.fillRect(w * .55, h - 9, w * .3, 2.5); for (let i = 0; i < 5; i++) poly(ctx, [[6 + i * 12, h], [10 + i * 12, h + 7], [14 + i * 12, h]], '#d8f6ff', 1.2); }); },
 });
 defItem('honey', {
-  name: 'Honey Block', cat: 'block', w: 2, h: 1, weight: 2, desc: 'Sticky. Slows you, but you can cling to its sides.',
+  name: 'Honey Block', cat: 'block', w: 2, h: 1, weight: 2, desc: 'Sticky on the honey side only: slows you on top, lets you cling when the honey faces sideways.',
   solids: [[0, 0, 2, 1, { surf: 'honey' }]],
   draw(ctx, it, t) { withRot(ctx, it, this, (w, h) => { drawWood(ctx, 0, 4, w, h - 4, 31, '#a8743e'); ctx.beginPath(); ctx.moveTo(0, 0); for (let x = 0; x <= w; x += 8) ctx.lineTo(x, 6 + Math.sin(x * .7 + t * 2) * 2 + (x % 24 === 8 ? 7 : 0)); ctx.lineTo(w, 0); ctx.closePath(); fillStroke(ctx, '#f4b62a', 2); }); },
 });

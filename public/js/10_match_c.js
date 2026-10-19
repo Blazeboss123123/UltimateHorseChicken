@@ -10,6 +10,7 @@ Object.assign(Match, {
     this.drawTopBar(ctx, SW, SH, u);
     this.drawScoreStrip(ctx, SW, SH, u);
     if (M.phase === 'intro') { panel(ctx, SW / 2 - 260 * u, SH / 2 - 70 * u, 520 * u, 140 * u); txt(ctx, M.map.name, SW / 2, SH / 2 - 22 * u, 40 * u, '#fff'); txt(ctx, (M.mode === 'creative' ? 'Creative' : 'Party') + ' · first to ' + M.rules.winScore + (M.rules.roundLimit ? ' · ' + M.rules.roundLimit + ' rounds max' : ''), SW / 2, SH / 2 + 28 * u, 20 * u, INK, 'center', null, 600); }
+    if (M.phase === 'spectate') { panel(ctx, SW / 2 - 280 * u, SH * .2, 560 * u, 70 * u, '#fff1c4'); txt(ctx, 'You joined mid-round!', SW / 2, SH * .2 + 24 * u, 24 * u, '#e8573f'); txt(ctx, 'Sit tight — you\'ll jump in at the start of the next round.', SW / 2, SH * .2 + 50 * u, 15 * u, INK, 'center', null, 600); }
     if (M.phase === 'pick') this.drawPick(ctx, SW, SH, u);
     if (M.phase === 'dealt') this.drawDealt(ctx, SW, SH, u);
     if (M.phase === 'build') this.drawBuildHUD(ctx, SW, SH, u);
@@ -26,7 +27,7 @@ Object.assign(Match, {
     if (P === 'pick' || P === 'dealt') { title = 'PICK'; time = P === 'pick' ? M.timer : null; }
     else if (P === 'build') { title = 'BUILD'; time = M.timer; }
     else if (P === 'race') { title = 'RACE'; time = M.countdown > 0 ? null : M.raceT; const mh = MECH[M.map.mech] && MECH[M.map.mech].hud; if (mh) sub = mh(M.W) || ''; }
-    else if (P === 'results') title = 'RESULTS'; else if (P === 'podium') title = 'WINNER!'; else title = 'GET READY';
+    else if (P === 'results') title = 'RESULTS'; else if (P === 'podium') title = 'WINNER!'; else if (P === 'spectate') title = 'WATCHING'; else title = 'GET READY';
     const w = 340 * u, h = 54 * u, x = SW / 2 - w / 2, y = 10 * u;
     panel(ctx, x, y, w, h);
     txt(ctx, title, x + 18 * u, y + h / 2, 26 * u, '#e8573f', 'left');

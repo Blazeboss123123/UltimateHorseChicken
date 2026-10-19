@@ -84,6 +84,26 @@ class BootScene extends Phaser.Scene {
   }
 }
 
+// Browsers stop drawing a page that is hidden or behind other windows. The game (and an online match
+// you're hosting) should keep going anyway, so when frames stop arriving we keep stepping the game
+// ourselves from a worker timer (worker timers aren't throttled like the page's own).
+function keepRunningInBackground(game) {
+  game.events.once('ready', () => {
+    game.events.off('hidden', game.onHidden, game); game.events.off('visible', game.onVisible, game);
+    if (game.sound) game.sound.pauseOnBlur = false;
+  });
+  let lastRaf = performance.now(), lastBeat = performance.now(), bg = false;
+  (function frame() { lastRaf = performance.now(); requestAnimationFrame(frame); })();
+  const beat = () => {
+    const now = performance.now();
+    if (now - lastRaf < 150) { if (bg) { bg = false; try { game.loop.resetDelta(); } catch (e) { } } lastBeat = now; return; }
+    bg = true; const d = Math.min(100, Math.max(1, now - lastBeat)); lastBeat = now;
+    try { game.headlessStep(now, d); } catch (e) { console.error(e); }
+  };
+  try { const w = new Worker(URL.createObjectURL(new Blob(['setInterval(function(){postMessage(0)},33)'], { type: 'text/javascript' }))); w.onmessage = beat; }
+  catch (e) { setInterval(beat, 33); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { try { game.loop.resetDelta(); } catch (e) { } } });
+}
 function webglAvailable() { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl'))); } catch (e) { return false; } }
 function bootGame() {
   Save.load();
@@ -107,6 +127,7 @@ function bootGame() {
   game.events.on('prestep', (time, delta) => Game.preStep(delta));
   game.events.on('postrender', () => Input.endFrame());
   addEventListener('beforeunload', () => Save.write());
+  keepRunningInBackground(game);
   setInterval(() => Save.write(), 15000);
 }
 // Start once the font is ready so baked text uses it.

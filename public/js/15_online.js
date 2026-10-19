@@ -9,7 +9,7 @@ const GUEST_REQUESTS = new Set(['pick', 'place', 'undo', 'death', 'fin', 'coin']
 // cosmetic messages any player may send directly
 const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'respawn', 'pfail']);
 // events that belong to a running match (queued if the match scene isn't up yet)
-const MATCH_EVENTS = new Set(['round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
+const MATCH_EVENTS = new Set(['addPlayers', 'round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
 
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/O/g, '0').replace(/I/g, '1').split('').filter(c => CODE_ALPHA.includes(c)).join('').slice(0, 6); }
 
@@ -62,6 +62,14 @@ const Online = {
     Input.kb2Active = false;
     for (const e of Session.roster) { if (typeof bakeCharacter === 'function' && TEX.scene) { bakeCharacter(e); bakePortrait(e); } }
   },
+  // a roster entry for a room member (used when someone joins in the middle of a match)
+  entryFor(id) {
+    let e = Session.roster.find(x => x.netId === id); if (e) return e;
+    const m = this.members.find(x => x.id === id); if (!m) return null;
+    e = { id: m.id, netId: m.id, name: m.name, char: m.char, hat: m.hat, colorIdx: m.colorIdx, color: PLAYER_COLORS[m.colorIdx % 8], input: m.id === this.id ? 'any' : 'net', remote: m.id !== this.id, slot: 0, conn: 'online', ready: true, gone: false };
+    if (TEX.scene) { bakeCharacter(e); bakePortrait(e); }
+    return e;
+  },
   sendLook(e) { this.send({ t: 'look', name: e.name, char: e.char, hat: e.hat }); const m = this.members.find(x => x.id === this.id); if (m) Object.assign(m, { name: e.name, char: e.char, hat: e.hat }); },
   onMessage(m) {
     switch (m.t) {
@@ -69,8 +77,9 @@ const Online = {
       case 'msg': return this.onGameMsg(m.from, m.m);
       case 'pong': this.ping = Math.round(performance.now() - m.c); return;
       case 'join': {
-        this.members.push(m.m); toast('👋 <b>' + esc(m.m.name) + '</b> joined the game'); Audio2.sfx('pick');
+        this.members.push(m.m); toast('👋 <b>' + esc(m.m.name) + '</b> joined the game' + (Net.inMatch ? ' — they\'ll jump in next round' : '')); Audio2.sfx('pick');
         if (!Net.inMatch) this.buildRoster();
+        else if (Net.isHost && Match.M) { Match.M.pendingJoin.push(m.m.id); this.send({ t: 'cast', to: m.m.id, m: Match.snapshot() }); }
         return;
       }
       case 'leave': {
@@ -180,3 +189,14 @@ const NetBar = {
     if (n) n.textContent = Online.members.length + '/8 players'; if (pg) pg.textContent = Online.ping ? Online.ping + ' ms' : '…';
   },
 };
+
+// Joining in the middle of a match: the host sends us the match so far; we watch until the next round.
+Net.on('sync', a => {
+  if (!Net.online || Net.isHost || Match.M) return false;
+  Net.rules = a.rules || deepCopy(DEFAULT_RULES);
+  Session.roster = (a.ids || []).map(id => Online.entryFor(id)).filter(Boolean);
+  Net.inMatch = true; Net.syncSnap = a; Session.mode = a.mode; Session.mapId = a.mapId;
+  toast('🎬 You joined mid-match — watch this round, you\'re in from the next one!');
+  Game.launch(a.mode, a.mapId, a.custom || null);
+  return true;
+});

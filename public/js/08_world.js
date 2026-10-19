@@ -101,8 +101,9 @@ class WorldView {
   onHit(pz, z) {
     const p = pz.p, b = pz.body, zb = z.body, so = z.solid;
     if (Math.abs(b.bottom - zb.top) < 3) { p._gnd = so; }
-    else if (Math.abs(b.right - zb.left) < 3) { p._wall = 1; p._wallSurf = so.surf; }
-    else if (Math.abs(b.left - zb.right) < 3) { p._wall = -1; p._wallSurf = so.surf; }
+    // honey only grips on the side that has honey on it
+    else if (Math.abs(b.right - zb.left) < 3) { p._wall = 1; p._wallSurf = so.surf === 'honey' && !(so.hn && so.hn[0] < 0) ? null : so.surf; }
+    else if (Math.abs(b.left - zb.right) < 3) { p._wall = -1; p._wallSurf = so.surf === 'honey' && !(so.hn && so.hn[0] > 0) ? null : so.surf; }
   }
   onSpawn(p) {
     if (!p.body) return;
@@ -190,7 +191,7 @@ class WorldView {
       p.vx = ix * 140; p.vy = inp.iy * 170;
       if (p.buffer > 0) { p.climbing = false; p.vy = -PHYS.jumpV * .85; p.buffer = 0; Audio2.sfx('jump'); }
     } else {
-      const surf = p.onGround && p.ground ? p.ground.surf : null;
+      let surf = p.onGround && p.ground ? p.ground.surf : null; if (surf === 'honey' && p.ground.hn && p.ground.hn[1] >= 0) surf = null; // standing on the dry side
       const maxS = PHYS.run * R.speed * (surf === 'honey' ? .45 : 1);
       // External pushes (fans, wind, black holes). Sideways pushes shift the speed you settle at, so they move you
       // even while standing on the ground (ground friction used to cancel them out); vertical pushes are accelerations.

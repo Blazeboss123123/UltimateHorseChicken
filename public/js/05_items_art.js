@@ -18,7 +18,7 @@ const ITEM_ART = {
     wob(ctx, 0, 0, w, h, 21, 1.4); const g = ctx.createLinearGradient(0, 0, w * .3, h); g.addColorStop(0, '#e6fbff'); g.addColorStop(1, '#8fd3ee'); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = '#5aa8c8'; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.2; line(ctx, 5, 4, w * .45, 4, 'rgba(255,255,255,.85)', 2.4); line(ctx, w * .6, h - 7, w - 6, h - 9, 'rgba(255,255,255,.6)', 1.6);
     for (const [x1, y1, x2, y2] of [[w * .3, 0, w * .2, h], [w * .62, 0, w * .75, h], [w * .2, h * .5, w * .62, h * .3]]) line(ctx, x1, y1, x2, y2, 'rgba(90,168,200,.35)', 1);
-    for (let i = 0; i < 6; i++) { const x = 4 + i * (w - 8) / 6; poly(ctx, [[x, h - 1], [x + 3, h + 5 + (i % 2) * 3], [x + 6, h - 1]], '#d6f6ff', 1.2); }
+    for (let i = 0; i < 6; i++) { const x = 4 + i * (w - 8) / 6; poly(ctx, [[x, h - 1], [x + 3.5, h + 9 + (i % 2) * 3], [x + 7, h - 1]], '#d6f6ff', 1.4); line(ctx, x + 2.5, h + 1, x + 3.3, h + 6, 'rgba(255,255,255,.9)', 1); }
     ctx.fillStyle = '#fff'; starPath(ctx, w - 9, 7, 3, 1, 4); ctx.fill();
   },
   honey(ctx, w, h, t) {

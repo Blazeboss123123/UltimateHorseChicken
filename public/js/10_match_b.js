@@ -10,7 +10,8 @@ Object.assign(Match, {
     const inputs = M.players.map(p => Input.read(p.entry.input));
     M.players.forEach((p, i) => { if (racing && !p.gone) M.view.controlPlayer(p, inputs[i], dt); else if (p.alive && !p.finished) M.view.hold(p); else { p.animT += dt; if (!p.alive) p.deathT += dt; } });
     const P = M.phase;
-    if (P === 'intro') { M.timer -= dt; fitWholeMap(M.rig, W); if (M.timer <= 0 && this.once('intro')) this.hostRound(); }
+    if (P === 'spectate') { fitWholeMap(M.rig, W); M.players.forEach(p => { if (p.alive) M.view.controlPlayer(p, inputs[0], dt); }); }
+    else if (P === 'intro') { M.timer -= dt; fitWholeMap(M.rig, W); if (M.timer <= 0 && this.once('intro')) this.hostRound(); }
     else if (P === 'dealt') { M.timer -= dt; fitWholeMap(M.rig, W); if (M.timer <= 0 && this.once('dealt' + M.round)) Net.dispatch({ t: 'build', round: M.round }); }
     else if (P === 'pick') this.updatePick(dt);
     else if (P === 'build') this.updateBuild(dt);
@@ -92,7 +93,7 @@ Object.assign(Match, {
     }
     if (M.builders.every(B => this.builderDone(B))) {
       if (M.allDoneT == null) M.allDoneT = M.t;
-      if (M.t - M.allDoneT > (M.rules.allowUndo ? 1.4 : .5) && this.once('race' + M.round)) Net.dispatch({ t: 'race', round: M.round });
+      if (M.t - M.allDoneT > (M.rules.allowUndo ? 1.4 : .5) && this.once('race' + M.round)) Net.dispatch({ t: 'race', round: M.round, items: Net.online ? this.itemList() : undefined });
     }
   },
   updateRace(dt) {
