@@ -102,6 +102,20 @@ table.stats td:last-child{text-align:right;font-weight:700}
 #netbar{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;max-width:96vw;
   background:repeating-linear-gradient(180deg,#c88d52 0 22px,#a8703e 22px 24px);border:4px solid #5a3a1e;border-radius:14px;padding:6px 12px;box-shadow:0 5px 0 rgba(58,42,30,.4);color:#fff6e6;font-weight:700;text-shadow:0 2px 0 #5a3a1e}
 #netbar.mini{display:none!important}
+#chat{position:fixed;left:12px;bottom:58px;z-index:7;width:min(360px,calc(100vw - 24px));pointer-events:none;font-weight:600}
+#chat.lobby{bottom:118px}
+#chat .ch-log{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+#chat .ch-m{align-self:flex-start;max-width:100%;background:rgba(40,28,18,.72);color:#fff;padding:4px 10px;border-radius:10px;font-size:14px;line-height:1.3;overflow-wrap:anywhere;transition:opacity .8s}
+#chat .ch-m b{margin-right:4px;text-shadow:0 1px 0 rgba(0,0,0,.5);filter:brightness(1.35)}
+#chat .ch-m.fade{opacity:.35}
+#chat .ch-bar{display:none;pointer-events:auto;gap:6px;align-items:center;background:#fff6e6;border:3px solid var(--ink);border-radius:12px;padding:5px;box-shadow:0 4px 0 rgba(58,42,30,.35)}
+#chat.open .ch-bar{display:flex}
+#chat .ch-in{flex:1;min-width:0;font:inherit;font-size:15px;border:none;outline:none;background:none;color:var(--ink);padding:4px 6px}
+#chat .ch-emo{display:flex;gap:2px}
+#chat .ch-emo button{font-size:17px;line-height:1;border:none;background:none;cursor:pointer;padding:3px;border-radius:6px}
+#chat .ch-emo button:hover{background:#f0dcb8}
+#chat .ch-hint{display:inline-block;font-size:12px;color:#fff;background:rgba(40,28,18,.5);padding:3px 9px;border-radius:9px;opacity:.85}
+#chat.open .ch-hint{display:none}
 #netbar{position:fixed}
 #netbar .nb-min{position:absolute;top:-14px;right:14px;width:34px;height:24px;border:2px solid var(--ink);border-radius:8px 8px 0 0;border-bottom:none;background:#c8915a;color:#fff;font:inherit;font-size:15px;line-height:1;cursor:pointer;padding:0}
 #netbar .nb-min:hover{background:#d9a46c}
@@ -124,38 +138,39 @@ table.stats td:last-child{text-align:right;font-weight:700}
 <div id="ui"></div>
 <div id="toasts"></div>
 <div id="loading">Loading Ultimate Horse Chicken…</div>
-<script src="vendor/phaser.min.js?v=6"></script>
-<script src="js/01_util.js?v=6"></script>
-<script src="js/02_input.js?v=6"></script>
-<script src="js/03_audio.js?v=6"></script>
-<script src="js/04_art_a.js?v=6"></script>
-<script src="js/04_art_b.js?v=6"></script>
-<script src="js/05_items_a.js?v=6"></script>
-<script src="js/05_items_b.js?v=6"></script>
-<script src="js/05_items_art.js?v=6"></script>
-<script src="js/06_maps_a.js?v=6"></script>
-<script src="js/06_maps_paint.js?v=6"></script>
-<script src="js/06_maps_bg.js?v=6"></script>
-<script src="js/06_maps_b.js?v=6"></script>
-<script src="js/07_logic.js?v=6"></script>
-<script src="js/07_textures.js?v=6"></script>
-<script src="js/08_engine.js?v=6"></script>
-<script src="js/08_world.js?v=6"></script>
-<script src="js/08_items_view.js?v=6"></script>
-<script src="js/09_nav.js?v=6"></script>
-<script src="js/09_hud.js?v=6"></script>
-<script src="js/10_match_a.js?v=6"></script>
-<script src="js/10_match_b.js?v=6"></script>
-<script src="js/10_match_c.js?v=6"></script>
-<script src="js/11_progress.js?v=6"></script>
-<script src="js/11_modes.js?v=6"></script>
-<script src="js/12_lobby_a.js?v=6"></script>
-<script src="js/12_lobby_b.js?v=6"></script>
-<script src="js/14_ui_a.js?v=6"></script>
-<script src="js/14_ui_b.js?v=6"></script>
-<script src="js/14_ui_c.js?v=6"></script>
-<script src="js/15_online.js?v=6"></script>
-<script src="js/16_title.js?v=6"></script>
-<script src="js/13_main.js?v=6"></script>
+<script src="vendor/phaser.min.js?v=7"></script>
+<script src="js/01_util.js?v=7"></script>
+<script src="js/02_input.js?v=7"></script>
+<script src="js/03_audio.js?v=7"></script>
+<script src="js/04_art_a.js?v=7"></script>
+<script src="js/04_art_b.js?v=7"></script>
+<script src="js/05_items_a.js?v=7"></script>
+<script src="js/05_items_b.js?v=7"></script>
+<script src="js/05_items_art.js?v=7"></script>
+<script src="js/06_maps_a.js?v=7"></script>
+<script src="js/06_maps_paint.js?v=7"></script>
+<script src="js/06_maps_bg.js?v=7"></script>
+<script src="js/06_maps_b.js?v=7"></script>
+<script src="js/07_logic.js?v=7"></script>
+<script src="js/07_textures.js?v=7"></script>
+<script src="js/08_engine.js?v=7"></script>
+<script src="js/08_world.js?v=7"></script>
+<script src="js/08_items_view.js?v=7"></script>
+<script src="js/09_nav.js?v=7"></script>
+<script src="js/09_hud.js?v=7"></script>
+<script src="js/10_match_a.js?v=7"></script>
+<script src="js/10_match_b.js?v=7"></script>
+<script src="js/10_match_c.js?v=7"></script>
+<script src="js/11_progress.js?v=7"></script>
+<script src="js/11_modes.js?v=7"></script>
+<script src="js/12_lobby_a.js?v=7"></script>
+<script src="js/12_lobby_b.js?v=7"></script>
+<script src="js/14_ui_a.js?v=7"></script>
+<script src="js/14_ui_b.js?v=7"></script>
+<script src="js/14_ui_c.js?v=7"></script>
+<script src="js/15_online.js?v=7"></script>
+<script src="js/16_title.js?v=7"></script>
+<script src="js/17_social.js?v=7"></script>
+<script src="js/13_main.js?v=7"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@ function navGrid(W) {
   const solid = new Uint8Array(cols * rows), sup = new Uint8Array(cols * rows), haz = new Uint8Array(cols * rows);
   const mark = (arr, x0, y0, x1, y1) => { const c0 = Math.max(0, Math.floor(x0 / T)), c1 = Math.min(cols - 1, Math.floor((x1 - .01) / T)), r0 = Math.max(0, Math.floor(y0 / T) + top), r1 = Math.min(rows - 1, Math.floor((y1 - .01) / T) + top); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) arr[r * cols + c] = 1; };
   for (const s of W.solids) {
-    if (s.wall || s.disco || (s.ref && s.ref.id === 'mover') || s.src === 'mill') continue;
+    if (s.wall || s.disco || s.pl || (s.ref && (MOVING_SOLID_ITEMS.has(s.ref.id) || s.ref.id === 'flipper')) || s.src === 'mill') continue;
     if (s.oneway) { mark(sup, s.x + 1, s.y + 1, s.x + s.w - 1, s.y + 2); continue; }
     mark(solid, s.x + 1, s.y + 1, s.x + s.w - 1, s.y + s.h - 1); mark(sup, s.x + 1, s.y + 1, s.x + s.w - 1, s.y + s.h - 1);
   }

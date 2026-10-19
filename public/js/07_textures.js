@@ -32,8 +32,11 @@ const CHAR_SETS = [
   ['scaredrun', 8, k => ({ state: 'run', phase: k / 8 * TAU, t: k * .05, scared: true })],
   ['scaredfall', 2, k => ({ state: 'fall', t: k * .14, scared: true })],
   ['dead', 1, () => ({ state: 'fall', t: 0, dead: true })],
+  ['crouch', 2, k => ({ state: 'crouch', t: k * .5 })],
+  ['crawl', 6, k => ({ state: 'crawl', phase: k / 6 * TAU })],
+  ['slide', 1, () => ({ state: 'slide', t: 0 })],
 ];
-const CHAR_RATES = { idle: 5, run: 15, fall: 10, climb: 10, dance: 9, stun: 8, scared: 6, scaredrun: 15, scaredfall: 10 };
+const CHAR_RATES = { crouch: 2, crawl: 11, idle: 5, run: 15, fall: 10, climb: 10, dance: 9, stun: 8, scared: 6, scaredrun: 15, scaredfall: 10 };
 function lookKey(e) { return e.char + '_' + e.hat + '_' + (e.colorIdx || 0); }
 function bakeCharacter(e) {
   const key = 'chr_' + lookKey(e);

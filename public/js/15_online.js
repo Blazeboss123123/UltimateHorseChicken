@@ -4,12 +4,12 @@
 const NET_PROTO = 1;
 // which version of the game this page is (from the ?v= on the script tags) — the server turns away out-of-date pages
 const NET_BUILD = (() => { try { for (const sc of document.scripts) { const m = /[?&]v=(\d+)/.exec(sc.src || ''); if (m) return +m[1]; } } catch (e) { } return 0; })();
-const PS_STATES = ['idle', 'run', 'jump', 'fall', 'wall', 'climb', 'stun', 'dance'];
+const PS_STATES = ['idle', 'run', 'jump', 'fall', 'wall', 'climb', 'stun', 'dance', 'crouch', 'crawl', 'slide'];
 const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // actions a guest may ask the host to perform (always about their own player)
 const GUEST_REQUESTS = new Set(['pick', 'place', 'undo', 'death', 'fin', 'coin']);
 // cosmetic messages any player may send directly
-const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'respawn', 'pfail']);
+const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'respawn', 'pfail', 'chat', 'emote']);
 // events that belong to a running match (queued if the match scene isn't up yet)
 const MATCH_EVENTS = new Set(['addPlayers', 'round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
 
@@ -158,6 +158,7 @@ const Online = {
   },
   leave(silent) { const ws = this.ws; this.cleanup(); if (ws) try { ws.close(); } catch (e) { } },
   cleanup() {
+    Social.reset();
     this.ws = null; this.id = null; this.members = []; this.states.clear(); this.pending = [];
     Net.online = false; Net.isHost = true; Net.rules = null; Net.inMatch = false;
     NetBar.hide();

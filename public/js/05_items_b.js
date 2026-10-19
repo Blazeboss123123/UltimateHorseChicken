@@ -155,7 +155,7 @@ function fireProj(W, p) { p.life = p.life || 5; W.projs.push(p); }
 function rayLength(W, ox, oy, dx, dy, self, max) {
   let best = max;
   for (const s of W.solids) {
-    if (s.ref === self || s.oneway) continue;
+    if (s.ref === self || s.oneway || s.pl) continue;
     if (dx > 0 && oy > s.y && oy < s.y + s.h && s.x + s.w > ox) best = Math.min(best, Math.max(0, s.x - ox));
     else if (dx < 0 && oy > s.y && oy < s.y + s.h && s.x < ox) best = Math.min(best, Math.max(0, ox - (s.x + s.w)));
     else if (dy > 0 && ox > s.x && ox < s.x + s.w && s.y + s.h > oy) best = Math.min(best, Math.max(0, s.y - oy));
@@ -181,7 +181,7 @@ function updateProjectiles(W, dt) {
     const p = W.projs[i];
     p.life -= dt; p.vy += (p.g || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt;
     let dead = p.life <= 0 || p.x < -200 || p.x > W.map.w * T + 200 || p.y > W.map.h * T + 200 || p.y < -600;
-    if (!dead) for (const s of W.solids) { if (s.ref === p.ref || s.oneway) continue; if (p.x > s.x && p.x < s.x + s.w && p.y > s.y && p.y < s.y + s.h) { dead = true; FX.burst(p.x, p.y, p.kind === 'ball' ? 10 : 4, { color: p.kind === 'ball' ? ['#666', '#999'] : ['#8a5a30', '#ddd'], smax: 160, rmin: 2, rmax: 4 }); break; } }
+    if (!dead) for (const s of W.solids) { if (s.ref === p.ref || s.oneway || s.pl) continue; if (p.x > s.x && p.x < s.x + s.w && p.y > s.y && p.y < s.y + s.h) { dead = true; FX.burst(p.x, p.y, p.kind === 'ball' ? 10 : 4, { color: p.kind === 'ball' ? ['#666', '#999'] : ['#8a5a30', '#ddd'], smax: 160, rmin: 2, rmax: 4 }); break; } }
     if (dead) W.projs.splice(i, 1);
   }
 }

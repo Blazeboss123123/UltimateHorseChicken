@@ -218,6 +218,10 @@ function drawChar(ctx, id, o) {
   else if (st === 'climb') { armUp = 1; armA = Math.sin(t * 10) * .6; legA = Math.sin(t * 10) * .5; knee = .6; }
   else if (st === 'dance') { bob = -Math.abs(Math.sin(t * 7)) * 6; armUp = 1; armA = Math.sin(t * 14) * .7; spin = o.noSpin ? 0 : Math.sin(t * 3.5) * .25; legA = Math.sin(t * 14) * .4; knee = .3; }
   else if (st === 'stun') { lean = Math.sin(t * 9) * .2; armA = .5; }
+  else if (st === 'crouch') { legA = .95; knee = 1.75; armA = .35; bob = Math.sin(t * 3) * .4; lean = .08; }
+  else if (st === 'crawl') { const ph = o.phase || 0; legA = .9 + Math.sin(ph) * .4; knee = 1.6; armA = -Math.sin(ph) * .55; lean = .22; elbow = .9; }
+  else if (st === 'slide') { legA = -1.15; knee = .15; lean = -.32; armUp = .6; armA = .5; }
+  if (st === 'crouch' || st === 'crawl') ctx.scale(1.08, .64); else if (st === 'slide') ctx.scale(1.06, .6); // squat down towards the feet
   ctx.rotate(lean + spin);
   const legOf = (side, a, k) => {
     const hx = side * 2.6, hy = -11 + bob * .4, L1 = 5.8, L2 = 5.6;

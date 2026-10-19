@@ -1,6 +1,6 @@
 // ===================== LOGIC WORLD (the game model; Phaser renders it and runs player physics) =====================
-const PHYS = { run: 250, sprint: 1.5, accG: 2600, decG: 3000, accA: 1700, decA: 700, grav: 1900, jumpV: 610, maxFall: 820, coyote: .13, buffer: .16, wallSlide: 110, wallJumpX: 330, climbX: 180, climbV: .82, climbLock: .07, climbHold: .12, pushK: .2, holePull: 300, holeLift: 1, lowJumpMul: 2.1, minJump: .1 };
-const PW = 22, PH = 28;
+const PHYS = { run: 250, sprint: 1.5, crouch: .42, slideDec: 330, accG: 2600, decG: 3000, accA: 1700, decA: 700, grav: 1900, jumpV: 610, maxFall: 820, coyote: .13, buffer: .16, wallSlide: 110, wallJumpX: 330, climbX: 180, climbV: .82, climbLock: .07, climbHold: .12, pushK: .2, holePull: 300, holeLift: 1, lowJumpMul: 2.1, minJump: .1 };
+const PW = 22, PH = 28, CH = 17; // player width, height, crouched height
 
 function createWorld(map, rules) {
   const W = {
@@ -39,6 +39,9 @@ function stepWorld(W, dt) {
     if (it._s) { if (it.attach) it._s.forEach((s, k) => { s.vx = it._avx; s.vy = it._avy; s.key = it.uid + ':' + k; }); for (const s of it._s) S.push(s); }
     if (it._h) for (const h of it._h) W.hazards.push(h);
   }
+  // Player contact rule: during a race each player is a solid others can bump into and stand on
+  if (W.rules && W.rules.contact && (W.racing || W.testing) && W.players) for (const p of W.players) if (p.alive && !p.finished && !p.gone)
+    { const hd = p.h < PH ? 3 : 9; S.push({ x: p.x + 1, y: p.y - hd, w: p.w - 2, h: p.h + hd, vx: p.vx || 0, vy: 0, pl: p, key: 'pl' + p.idx, src: 'player' }); } // heads are drawn a bit above the hitbox
   W.solids = S;
   const M = MECH[W.map.mech]; if (M && M.tick) M.tick(W);
   updateProjectiles(W, dt);
@@ -49,13 +52,42 @@ function newPlayer(entry, idx) {
     x: 0, y: 0, w: PW, h: PH, vx: 0, vy: 0, onGround: false, ground: null, coyote: 0, buffer: 0, wallDir: 0, wallT: 0, wallSide: 0, wallHoney: false, wallLock: 0,
     facing: 1, alive: true, finished: false, state: 'idle', animT: rand(0, 5), phase: 0, squash: 0, stun: 0, climbing: false, coin: null, deathT: 0, portalCD: 0, scared: 0, blinkT: rand(2, 5), dropT: 0, finishT: 0, airT: 0 };
 }
+// Random spawns rule: safe standing spots spread around the level, the same on every screen for a given seed.
+function seededRand(seed) { let a = (seed >>> 0) || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function randomSpawnSpots(W, seed, n) {
+  const rnd = seededRand(seed * 2654435761 + W.map.w * 97 + W.map.h), MW = W.map.w * T;
+  const gx = W.goal.x + W.goal.w / 2, gy = W.goal.y + W.goal.h / 2, sx = W.start.x + W.start.w / 2, sy = W.start.y + W.start.h / 2;
+  const minGoal = Math.max(8 * T, Math.hypot(gx - sx, gy - sy) * .45); // never start right next to the flag
+  const tops = W.solids.filter(s => !s.wall && !s.disco && !s.pl && !(s.vx || s.vy) && !(s.ref && (MOVING_SOLID_ITEMS.has(s.ref.id) || s.ref.id === 'flipper' || s.ref.id === 'falling')) && s.surf !== 'bounce' && s.surf !== 'conv' && s.src !== 'mill' && s.w >= PW + 4);
+  const safe = r => {
+    if (r.x < 4 || r.x + r.w > MW - 4 || r.y < -4 * T) return false;
+    if (W.solids.some(s => !s.oneway && !s.pl && rectsOverlap(r, s))) return false;
+    const big = { x: r.x - 1.6 * T, y: r.y - 1.6 * T, w: r.w + 3.2 * T, h: r.h + 3.2 * T };
+    if (W.hazards.some(h => shapeHitsRect(h, big))) return false;
+    if (W.forces.some(f => f.k === 'rect' ? rectsOverlap(r, f) : Math.hypot(f.x - r.x, f.y - r.y) < f.r + T)) return false;
+    if (rectsOverlap(r, W.goalZone) || Math.hypot(r.x - gx, r.y - gy) < minGoal) return false;
+    return true;
+  };
+  const cand = [];
+  for (const s of tops) for (let x = s.x + 2; x + PW <= s.x + s.w - 2; x += T * .75) { const r = { x, y: s.y - PH - 1, w: PW, h: PH }; if (safe(r)) cand.push(r); }
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (!cand.length) { out.push(null); continue; }
+    // pick a random spot, preferring ones away from spots already taken
+    let best = null, bd = -1;
+    for (let k = 0; k < 6; k++) { const c = cand[Math.floor(rnd() * cand.length)]; const d = out.reduce((m, o) => o ? Math.min(m, Math.hypot(o.x - c.x, o.y - c.y)) : m, 1e9); if (d > bd) { bd = d; best = c; } }
+    out.push({ x: best.x, y: best.y });
+  }
+  return out;
+}
 function spawnPlayers(W, list) {
   const n = list.length, S = W.start;
   list.forEach((p, i) => {
     p.x = S.x + (S.w - PW) * (n === 1 ? .5 : i / (n - 1)); p.y = S.y + S.h - PH - 1;
+    const rs = W.spawnSpots && W.spawnSpots[p.idx]; if (rs) { p.x = rs.x; p.y = rs.y; }
     p.vx = p.vy = 0; p.alive = true; p.finished = false; p.climbing = false; p.coin = null; p.stun = 0; p.state = 'idle'; p.deathT = 0; p.facing = 1; p.squash = 0; p.onGround = false; p.ground = null; p.wallT = 0; p.portalCD = 0;
     // drop onto the start platform
-    for (let k = 0; k < 200; k++) { if (W.terrainSolids.some(s => !s.wall && rectsOverlap({ x: p.x, y: p.y + 1, w: p.w, h: p.h }, s))) break; p.y += 2; if (p.y > S.y + S.h + 6 * T) { p.y = S.y + S.h - PH - 1; break; } }
+    if (!rs) for (let k = 0; k < 200; k++) { if (W.terrainSolids.some(s => !s.wall && rectsOverlap({ x: p.x, y: p.y + 1, w: p.w, h: p.h }, s))) break; p.y += 2; if (p.y > S.y + S.h + 6 * T) { p.y = S.y + S.h - PH - 1; break; } }
     if (W.view) W.view.onSpawn(p);
   });
 }

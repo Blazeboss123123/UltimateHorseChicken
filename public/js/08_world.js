@@ -58,7 +58,7 @@ class WorldView {
     this.frame = (this.frame || 0) + 1;
     const W = this.W;
     for (const it of W.items) if (it._s) it._s.forEach((so, i) => this.zoneFor(it.uid + ':' + i, so, MOVING_SOLID_ITEMS.has(it.id) || !!it.attach));
-    let mi = 0; for (const so of W.solids) if (so.src === 'mill') this.zoneFor('mill' + (mi++), so, true);
+    let mi = 0; for (const so of W.solids) { if (so.src === 'mill') this.zoneFor('mill' + (mi++), so, true); else if (so.pl) this.zoneFor(so.key, so, true); }
     W.discoSolids.forEach((so, i) => { const z = this.zones.get('disco' + i); if (z) { z.seen = this.frame; z.body.enable = W.solids.includes(so); } });
     for (const [k, z] of this.zones) {
       if (k.startsWith('T:')) continue;
@@ -92,10 +92,14 @@ class WorldView {
       this.colliders = [s.physics.add.collider(this.pg, this.sg, this.onHit, this.canHit, this), s.physics.add.collider(this.pg, this.dg, this.onHit, this.canHit, this)];
     } else { this.colliders.forEach(c => c.object1 = this.pg); }
   }
-  destroyPlayer(p) { for (const k of ['zone', 'spr', 'tag', 'coinImg']) if (p[k]) { p[k].destroy(); p[k] = null; } }
+  destroyPlayer(p) { for (const k of ['zone', 'spr', 'tag', 'coinImg', 'bub']) if (p[k]) { p[k].destroy(); p[k] = null; } }
   canHit(pz, z) {
     const p = pz.p, so = z.solid; if (!p || !p.alive || p.finished) return false;
-    if (so && so.oneway) { const b = pz.body; return p.dropT <= 0 && !p.climbing && b.velocity.y >= -1 && b.prev.y + PH <= z.body.y + 6; }
+    if (so && so.pl) { // another player (contact rule): no bumping into yourself, and no shoving if you were already overlapping
+      if (so.pl === p || !so.pl.alive) return false; const b = pz.body, zb = z.body;
+      return !(b.prev.x < zb.prev.x + zb.width - 1 && b.prev.x + b.width > zb.prev.x + 1 && b.prev.y < zb.prev.y + zb.height - 1 && b.prev.y + b.height > zb.prev.y + 1);
+    }
+    if (so && so.oneway) { const b = pz.body; return p.dropT <= 0 && !p.climbing && b.velocity.y >= -1 && b.prev.y + b.height <= z.body.y + 6; }
     return true;
   }
   onHit(pz, z) {
@@ -107,6 +111,7 @@ class WorldView {
   }
   onSpawn(p) {
     if (!p.body) return;
+    this.setCrouch(p, false, true);
     p.body.reset(p.x + PW / 2, p.y + PH / 2); p.body.setVelocity(0, 0); p.body.enable = !(p.entry && p.entry.remote); p._pt = null;
     p.spr.setAlpha(1).setVisible(true).setRotation(0); p.tag.setVisible(Save.data.settings.names && this.players.length > 1);
     if (p.deadTween) { p.deadTween.stop(); p.deadTween = null; }
@@ -120,6 +125,19 @@ class WorldView {
   onFinish(p) { if (p.body) { p.body.setVelocity(0, 0); p.body.enable = false; } }
   shake(px) { if (Save.data.settings.shake) { const c = this.s.cameras.main; c.shake(180, px / Math.max(400, c.width)); } }
 
+  // Crouching shrinks the hitbox from the top (feet stay put).
+  setCrouch(p, on, reset) {
+    if (!!p.crouch === !!on && !reset) return; p.crouch = !!on; p.h = on ? CH : PH; p.slide = false;
+    const b = p.body; if (!b) return;
+    b.setSize(PW, p.h, false); b.setOffset(0, PH - p.h);
+    // Phaser re-places the body from its offset on the next physics step; only our own copy of y moves now
+    if (b.enable && !reset) p.y += on ? PH - CH : CH - PH;
+  }
+  // room to stand up? (nothing solid above a crouched player's head)
+  canStand(p) {
+    const r = { x: p.x + 1, y: p.y + p.h - PH, w: p.w - 2, h: PH - p.h };
+    return !this.W.solids.some(so => !so.oneway && !so.pl && rectsOverlap(r, so));
+  }
   // ---------- per-frame player control (inputs -> Arcade body velocities) ----------
   // Another online player: their own game moves them; we just follow the positions they stream to us.
   puppet(p, dt) {
@@ -134,6 +152,7 @@ class WorldView {
     if (p._pt == null || Math.hypot(tx - p.x, ty - p.y) > 160) { p.x = tx; p.y = ty; }
     else { const k = 1 - Math.exp(-dt * 18); p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; }
     p._pt = 1; p.vx = s[2] || 0; p.vy = s[3] || 0; p.facing = s[4] < 0 ? -1 : 1; p.state = PS_STATES[s[5]] || 'idle';
+    p.h = p.state === 'crouch' || p.state === 'crawl' || p.state === 'slide' ? CH : PH;
     const f = s[6] | 0; p.scared = f & 1 ? 1 : 0; p.onGround = !!(f & 2);
   }
   controlPlayer(p, inp, dt) {
@@ -171,13 +190,13 @@ class WorldView {
     const core = { x: p.x + 3, y: p.y + 3, w: p.w - 6, h: p.h - 6 };
     // (moving solids get a deeper margin: their colliders catch up a frame after the model moves them)
     const deep = { x: p.x + 7, y: p.y + 8, w: p.w - 14, h: p.h - 14 };
-    for (const so of W.solids) if (!so.oneway && !so.wall && so !== p.ground && rectsOverlap((so.vx || so.vy) ? deep : core, so)) { killPlayer(W, p, { owner: -1, src: 'getting squashed' }); return; }
+    for (const so of W.solids) if (!so.oneway && !so.wall && !so.pl && so !== p.ground && rectsOverlap((so.vx || so.vy) ? deep : core, so)) { killPlayer(W, p, { owner: -1, src: 'getting squashed' }); return; }
     // --- inputs ---
     if (p.stun > 0) p.stun -= dt;
     const stunned = p.stun > 0;
     let ix = stunned ? 0 : inp.ix; if (Math.abs(ix) < .2) ix = 0;
     if (inp.pressed.jump && !stunned) p.buffer = PHYS.buffer; else p.buffer -= dt;
-    if (inp.held.down && inp.pressed.jump) { p.dropT = .25; p.buffer = 0; }
+    if (inp.held.down && inp.pressed.jump && p.onGround && p.ground && p.ground.oneway) { p.dropT = .25; p.buffer = 0; }
     if (p.dropT > 0) p.dropT -= dt;
     p.portalCD -= dt; p.wallLock -= dt; p.wallT -= dt;
     if (wallNow && !p.onGround) { p.wallT = .12; p.wallSide = wallNow; p.wallHoney = p._wallSurf === 'honey'; }
@@ -194,7 +213,12 @@ class WorldView {
       let surf = p.onGround && p.ground ? p.ground.surf : null; if (surf === 'honey' && p.ground.hn && p.ground.hn[1] >= 0) surf = null; // standing on the dry side
       // Sprint: hold it for 1.5x top speed. You keep a sprint going through the air as long as you hold it.
       p.sprint = !stunned && !!inp.held.sprint && (p.onGround || p.sprint || p.wallT > 0 || Math.abs(p.vx) > PHYS.run * R.speed * 1.05);
-      const maxS = PHYS.run * R.speed * (surf === 'honey' ? .45 : 1) * (p.sprint ? PHYS.sprint : 1);
+      // Crouch: hold down on the ground. Crouching while running fast turns into a slide.
+      const wantCrouch = !stunned && inp.held.down && p.onGround && !p.climbing;
+      if (wantCrouch && !p.crouch) { if (Math.abs(p.vx) > PHYS.run * R.speed * 1.12) { p.slide = true; Audio2.sfx('land'); } this.setCrouch(p, true); }
+      else if (p.crouch && (!wantCrouch || p.buffer > 0) && this.canStand(p)) { this.setCrouch(p, false); p.slide = false; }
+      if (p.slide && (!p.crouch || Math.abs(p.vx) < 110 || !p.onGround)) p.slide = false;
+      const maxS = PHYS.run * R.speed * (surf === 'honey' ? .45 : 1) * (p.crouch && !p.slide ? PHYS.crouch : p.sprint ? PHYS.sprint : 1);
       // External pushes (fans, wind, black holes). Sideways pushes shift the speed you settle at, so they move you
       // even while standing on the ground (ground friction used to cancel them out); vertical pushes are accelerations.
       let drift = 0, fy = 0;
@@ -211,7 +235,8 @@ class WorldView {
           }
         }
       }
-      if (p.wallLock <= 0) {
+      if (p.slide) { p.vx = approach(p.vx, drift, (surf === 'ice' ? 60 : PHYS.slideDec) * dt); if ((p.dustT = (p.dustT || 0) - dt) <= 0) { p.dustT = .05; FX.burst(p.x + p.w / 2, p.y + p.h, 1, { color: 'rgba(255,255,255,.85)', kind: 'puff', g: -30, smin: 10, smax: 50 }); } }
+      else if (p.wallLock <= 0) {
         const target = ix * maxS + drift;
         if (ix || drift) p.vx = approach(p.vx, target, (p.onGround ? (surf === 'ice' ? 420 : PHYS.accG) : PHYS.accA * R.airControl) * dt * Math.max(Math.abs(ix), drift ? 1 : 0));
         else p.vx = approach(p.vx, 0, (p.onGround ? (surf === 'ice' ? 200 : PHYS.decG) : PHYS.decA * R.airControl) * dt);
@@ -265,7 +290,7 @@ class WorldView {
     if ((W.racing || W.testing) && rectsOverlap(hb, W.goal)) { finishPlayer(W, p); return; }
     // --- animation state ---
     if (ix) p.facing = ix > 0 ? 1 : -1;
-    p.state = p.climbing ? 'climb' : stunned ? 'stun' : !p.onGround ? (p.wallT > 0 && p.vy > 0 ? 'wall' : p.vy < 0 ? 'jump' : 'fall') : Math.abs(p.vx) > 25 ? 'run' : 'idle';
+    p.state = p.climbing ? 'climb' : stunned ? 'stun' : !p.onGround ? (p.wallT > 0 && p.vy > 0 ? 'wall' : p.vy < 0 ? 'jump' : 'fall') : p.slide ? 'slide' : p.crouch ? (Math.abs(p.vx) > 25 ? 'crawl' : 'crouch') : Math.abs(p.vx) > 25 ? 'run' : 'idle';
     if (p.state === 'wall') p.facing = -p.wallSide;
     p.scared = 0;
     for (const h of W.hazards) { const cx = h.k === 'c' ? h.x : h.x + h.w / 2, cy = h.k === 'c' ? h.y : h.y + h.h / 2; if (Math.abs(cx - p.x) < 90 && Math.abs(cy - p.y) < 90 && h.owner !== -1) { p.scared = 1; break; } }
@@ -282,7 +307,7 @@ class WorldView {
     for (const p of this.players) {
       if (!p.spr) continue;
       const key = 'chr_' + lookKey(p.entry);
-      if (!p.alive) { p.coinImg.setVisible(false); continue; }
+      if (!p.alive) { p.coinImg.setVisible(false); if (p.bub) p.bub.setVisible(false); continue; }
       const b = p.body, cx = b && b.enable ? b.center.x : p.x + p.w / 2, by = b && b.enable ? b.bottom : p.y + p.h;
       p.spr.setPosition(cx, by).setFlipX(p.facing < 0);
       let a = p.state || 'idle';
@@ -293,8 +318,23 @@ class WorldView {
       p.spr.setRotation(a === 'dance' ? Math.sin(p.animT * 3.5) * .25 : 0);
       p.tag.setPosition(cx, by - 46 - (p.tagLift || 0)).setVisible(Save.data.settings.names && this.players.length > 1);
       p.coinImg.setVisible(!!p.coin).setPosition(cx, by - 62);
+      this.drawBubble(p, cx, by - (p.tag && p.tag.visible ? 64 + (p.tagLift || 0) : 50));
       if (p.onGround && b) { this.gx.fillStyle = 'rgba(0,0,0,.12)'; this.gx.beginPath(); this.gx.ellipse(cx, by, 11, 3, 0, 0, TAU); this.gx.fill(); }
     }
+  }
+  // emote / chat bubble over a player's head
+  drawBubble(p, x, y) {
+    const S = p.say, now = performance.now();
+    if (!S || now > S.until || !p.alive) { if (p.bub) p.bub.setVisible(false); if (S && now > S.until) p.say = null; return; }
+    if (!p.bub || p.bub._k !== S.at) {
+      if (p.bub) p.bub.destroy();
+      p.bub = S.emoji ? this.s.add.text(0, 0, S.s, { fontFamily: 'Fredoka, "Segoe UI Emoji", "Apple Color Emoji", sans-serif', fontSize: '30px', padding: { x: 4, y: 4 } }).setOrigin(.5, 1).setDepth(36)
+        : this.s.add.text(0, 0, S.s, { fontFamily: 'Fredoka, sans-serif', fontSize: '13px', fontStyle: 'bold', color: '#3a2a1e', backgroundColor: '#fffaf0', padding: { x: 7, y: 4 }, wordWrap: { width: 170, useAdvancedWrap: true }, align: 'center' }).setOrigin(.5, 1).setDepth(36);
+      p.bub._k = S.at;
+    }
+    const age = (now - S.at) / 1000, left = (S.until - now) / 1000;
+    const pop = S.emoji ? Math.min(1, age * 7) * (1 + Math.max(0, .35 - age) * 1.2) : Math.min(1, age * 8);
+    p.bub.setVisible(true).setPosition(x, y - (S.emoji ? Math.min(8, age * 30) : 0)).setScale(pop).setAlpha(Math.min(1, left * 3));
   }
   update(dt, t, opt = {}) {
     const W = this.W;

@@ -239,6 +239,7 @@ const Match = {
     M.phase = 'race'; M.countdown = 3.2; M.raceT = M.rules.raceTime; M.finishOrder = []; M.deaths = []; M.coinsGot = []; M.endT = 0; M.builders = null; M.goT = 0; M.coinOwner = {};
     W.t = 0; W.projs = []; for (const it of W.items) it.st = {};
     for (const pv of M.previews || []) if (pv) pv.hide();
+    W.spawnSpots = null; if (M.rules.randomSpawn) { stepWorld(W, 0); W.spawnSpots = randomSpawnSpots(W, M.round * 31 + 7, M.players.length); }
     spawnPlayers(W, M.players);
     M.players.forEach(p => { p.alive = !p.gone; p.finished = false; p.deathT = 0; p.state = 'idle'; if (p.gone) this.hide(p); });
     Audio2.play('race'); Audio2.sfx('beep'); M.lastBeep = 3;
@@ -327,7 +328,7 @@ const Match = {
     M.finishOrder = a.fo.slice(); M.deaths = a.de.slice(); M.coinsGot = a.co.slice();
     this.endRace(); return true;
   },
-  endRace() { const M = this.M; M.phase = 'results'; M.resultsT = 0; M.W.racing = false; this.computeAwards(); Audio2.play('results'); },
+  endRace() { const M = this.M; M.W.spawnSpots = null; M.phase = 'results'; M.resultsT = 0; M.W.racing = false; this.computeAwards(); Audio2.play('results'); },
   hostAfterResults() {
     const M = this.M, R = M.rules;
     const top = Math.max(...M.scores.map(s => s.total));

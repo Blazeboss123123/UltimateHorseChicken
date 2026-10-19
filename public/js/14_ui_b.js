@@ -79,6 +79,8 @@ Object.assign(UI, {
         { type: 'range', label: '🐢 Underdog', min: 0, max: 30, get: () => R.ptsUnderdog, set: v => R.ptsUnderdog = v },
         { type: 'range', label: '🪤 Per trapped player', min: 0, max: 20, get: () => R.ptsTrap, set: v => R.ptsTrap = v },
         { type: 'check', label: '"Too easy" rule (no points if everyone finishes)', get: () => R.tooEasy, set: v => R.tooEasy = v },
+        { type: 'check', label: '🤼 Player contact (bump into each other, stand on heads)', get: () => !!R.contact, set: v => R.contact = v },
+        { type: 'check', label: '🎲 Random spawns (everyone starts somewhere random each round)', get: () => !!R.randomSpawn, set: v => R.randomSpawn = v },
       ]);
       if (id === 'mods') this.fields(P, '.body', [
         { type: 'range', label: 'Gravity', min: .4, max: 1.6, step: .05, get: () => R.gravity, set: v => R.gravity = v, fmt: v => Math.round(v * 100) + '%' },

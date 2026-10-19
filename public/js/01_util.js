@@ -39,7 +39,7 @@ const DEFAULT_RULES = {
   perPlayer: 1, extraItems: 2, order: 'rotate', assign: 'draft',
   respawn: false, coins: true, allowUndo: true, allowOverlap: false,
   ptsFinish: 25, ptsFirst: 10, ptsTrap: 6, ptsCoin: 10, ptsSolo: 15, ptsUnderdog: 8,
-  tooEasy: true, gravity: 1, airControl: 1, speed: 1,
+  tooEasy: true, gravity: 1, airControl: 1, speed: 1, contact: false, randomSpawn: false,
   handicap: [1, 1, 1, 1, 1, 1, 1, 1],
 };
 const DEFAULT_SETTINGS = {

@@ -64,7 +64,7 @@ const Game = {
     const wasUI = Input.uiCapture;
     if (wasUI) { UI.update(delta / 1000); if (!Input.uiCapture) Input.skip = true; }
     else if (this.scene && this.scene !== 'lobby' && this.scene !== 'title' && !this.trans && Input.anyPressed('menu')) UI.pause(this.scene);
-    try { Online.tick(delta / 1000); NetBar.update(); } catch (e) { console.error(e); }
+    try { Online.tick(delta / 1000); NetBar.update(); Social.update(delta / 1000); Social.tick(delta / 1000); } catch (e) { console.error(e); }
     const ws = this.worldScene();
     if (ws && ws.physics && ws.physics.world) { const want = this.paused(); if (want && !ws.physics.world.isPaused) ws.physics.pause(); else if (!want && ws.physics.world.isPaused) ws.physics.resume(); }
     if (!this.paused()) Save.data.stats.playTime += delta / 1000;
@@ -108,7 +108,7 @@ function webglAvailable() { try { const c = document.createElement('canvas'); re
 function bootGame() {
   Save.load();
   document.documentElement.style.setProperty('--ui-scale', Save.data.settings.uiScale);
-  Input.init();
+  Input.init(); Social.init();
   Session.addLocal('kb1');
   Progress.check();
   const pref = Save.data.settings.renderer;
