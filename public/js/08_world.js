@@ -1,5 +1,5 @@
 // ===================== WORLD VIEW: Phaser objects + Arcade physics for one level =====================
-const MOVING_SOLID_ITEMS = new Set(['mover']);
+const MOVING_SOLID_ITEMS = new Set(['mover', 'windmill', 'swing']);
 class WorldView {
   constructor(scene, W, opt = {}) {
     this.s = scene; this.W = W; W.view = this; this.opt = opt;
@@ -192,7 +192,9 @@ class WorldView {
       if (p.buffer > 0) { p.climbing = false; p.vy = -PHYS.jumpV * .85; p.buffer = 0; Audio2.sfx('jump'); }
     } else {
       let surf = p.onGround && p.ground ? p.ground.surf : null; if (surf === 'honey' && p.ground.hn && p.ground.hn[1] >= 0) surf = null; // standing on the dry side
-      const maxS = PHYS.run * R.speed * (surf === 'honey' ? .45 : 1);
+      // Sprint: hold it for 1.5x top speed. You keep a sprint going through the air as long as you hold it.
+      p.sprint = !stunned && !!inp.held.sprint && (p.onGround || p.sprint || p.wallT > 0 || Math.abs(p.vx) > PHYS.run * R.speed * 1.05);
+      const maxS = PHYS.run * R.speed * (surf === 'honey' ? .45 : 1) * (p.sprint ? PHYS.sprint : 1);
       // External pushes (fans, wind, black holes). Sideways pushes shift the speed you settle at, so they move you
       // even while standing on the ground (ground friction used to cancel them out); vertical pushes are accelerations.
       let drift = 0, fy = 0;
@@ -237,6 +239,7 @@ class WorldView {
         // moving platforms (windmill sails, moving platforms, things riding on them) carry you along
         if (g.vx) conv += g.vx;
       }
+      if (p.sprint && p.onGround && ix && Math.abs(p.vx) > PHYS.run * 1.1 && (p.dustT = (p.dustT || 0) - dt) <= 0) { p.dustT = .07; FX.burst(p.x + p.w / 2 - ix * 8, p.y + p.h, 1, { color: 'rgba(255,255,255,.8)', kind: 'puff', g: -30, smin: 10, smax: 40 }); }
       if (p.onGround && !p.wasGround && p.lastVy > 300) { p.squash = Math.min(.32, p.lastVy / 2400); Audio2.sfx('land'); FX.burst(p.x + p.w / 2, p.y + p.h, 4, { color: '#ffffff', kind: 'puff', g: 0, smin: 20, smax: 70 }); }
     }
     p.wasGround = p.onGround; p.lastVy = p.vy;
@@ -249,7 +252,13 @@ class WorldView {
     // --- interactions with the level ---
     const hb = { x: p.x + 3, y: p.y + 3, w: p.w - 6, h: p.h - 5 };
     for (const it of W.items) if (it._portal && p.portalCD <= 0 && rectsOverlap(hb, it._portal.inn)) { const o = it._portal.out; FX.burst(p.x + p.w / 2, p.y + p.h / 2, 12, { color: '#b98cff', g: 0 }); const v = { x: b.velocity.x, y: b.velocity.y }; p.x = o.x + o.w / 2 - p.w / 2; p.y = o.y + o.h - p.h - 2; b.reset(p.x + PW / 2, p.y + PH / 2); b.setVelocity(v.x, v.y); p.portalCD = .5; Audio2.sfx('teleport'); FX.burst(p.x + p.w / 2, p.y + p.h / 2, 12, { color: '#8cffc0', g: 0 }); }
-    for (const pu of W.pushers) if (rectsOverlap(hb, pu)) { p.vx = pu.ix; p.vy = pu.iy; b.setVelocity(pu.ix, pu.iy); p.stun = .35; p.onGround = false; p.wallLock = .2; FX.burst(p.x + p.w / 2, p.y + p.h / 2, 6, { color: '#ffd34d', kind: 'star', g: 0 }); }
+    for (const pu of W.pushers) if (pu.k === 'c') { // round bumper: bonk away from its middle
+      if (!rectCircle(hb, pu)) continue;
+      let ex = p.x + p.w / 2 - pu.x, ey = p.y + p.h / 2 - pu.y; const d = Math.hypot(ex, ey) || 1; ex /= d; ey /= d; if (ey > -.25 && Math.abs(ex) < .3) ey = -1;
+      p.vx = ex * 760; p.vy = Math.min(ey * 760 - 140, -260); b.setVelocity(p.vx, p.vy); p.stun = .18; p.onGround = false; p.wallLock = .12;
+      if (pu.ref) { pu.ref.st = pu.ref.st || {}; if (!(pu.ref.st.boing > .5)) Audio2.sfx('bounce'); pu.ref.st.boing = 1; }
+      FX.burst(pu.x + ex * 16, pu.y + ey * 16, 6, { color: '#ff5aa8', kind: 'star', g: 0 });
+    } else if (rectsOverlap(hb, pu)) { p.vx = pu.ix; p.vy = pu.iy; b.setVelocity(pu.ix, pu.iy); p.stun = .35; p.onGround = false; p.wallLock = .2; FX.burst(p.x + p.w / 2, p.y + p.h / 2, 6, { color: '#ffd34d', kind: 'star', g: 0 }); }
     for (const h of W.hazards) if (shapeHitsRect(h, hb)) { killPlayer(W, p, h); return; }
     for (let i = W.projs.length - 1; i >= 0; i--) { const pr = W.projs[i]; if (rectCircle(hb, { x: pr.x, y: pr.y, r: pr.r })) { W.projs.splice(i, 1); killPlayer(W, p, pr); return; } }
     for (const it of W.items) if (it._coin && !it.st.taken && !p.coin && rectCircle(hb, it._coin)) { it.st.taken = true; p.coin = it; if (W.onCoin) W.onCoin(p, it); Audio2.sfx('coin'); FX.burst(it._coin.x, it._coin.y, 12, { color: '#ffd34d', kind: 'star', g: 0 }); }

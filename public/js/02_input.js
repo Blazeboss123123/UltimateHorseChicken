@@ -1,13 +1,13 @@
 // ===================== INPUT =====================
-const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'interact', 'rotate', 'undo', 'prev', 'next', 'test', 'fav', 'menu'];
-const ACTION_LABELS = { left: 'Move left', right: 'Move right', up: 'Up / climb', down: 'Down / drop', jump: 'Jump / confirm', interact: 'Interact / place', rotate: 'Rotate item', undo: 'Undo / cancel', prev: 'Previous item', next: 'Next item', test: 'Test level (editor)', fav: 'Favourite map', menu: 'Pause menu' };
+const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'sprint', 'interact', 'rotate', 'undo', 'prev', 'next', 'test', 'fav', 'menu'];
+const ACTION_LABELS = { left: 'Move left', right: 'Move right', up: 'Up / climb', down: 'Down / drop', jump: 'Jump / confirm', sprint: 'Sprint (hold)', interact: 'Interact / place', rotate: 'Rotate item', undo: 'Undo / cancel', prev: 'Previous item', next: 'Next item', test: 'Test level (editor)', fav: 'Favourite map', menu: 'Pause menu' };
 const DEFAULT_BINDS = {
-  kb1: { left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], jump: ['Space'], interact: ['KeyE'], rotate: ['KeyR'], undo: ['KeyQ', 'Backspace'], prev: ['KeyZ'], next: ['KeyX'], test: ['Tab'], fav: ['KeyF'], menu: ['Escape'] },
-  kb2: { left: ['KeyJ'], right: ['KeyL'], up: ['KeyI'], down: ['KeyK'], jump: ['ShiftRight', 'Numpad0'], interact: ['Enter', 'NumpadEnter'], rotate: ['Period'], undo: ['Comma'], prev: ['BracketLeft'], next: ['BracketRight'], test: ['Backslash'], fav: ['Quote'], menu: ['Backquote'] },
+  kb1: { left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], jump: ['Space'], sprint: ['ShiftLeft', 'KeyC'], interact: ['KeyE'], rotate: ['KeyR'], undo: ['KeyQ', 'Backspace'], prev: ['KeyZ'], next: ['KeyX'], test: ['Tab'], fav: ['KeyF'], menu: ['Escape'] },
+  kb2: { left: ['KeyJ'], right: ['KeyL'], up: ['KeyI'], down: ['KeyK'], jump: ['ShiftRight', 'Numpad0'], sprint: ['Slash', 'Numpad1'], interact: ['Enter', 'NumpadEnter'], rotate: ['Period'], undo: ['Comma'], prev: ['BracketLeft'], next: ['BracketRight'], test: ['Backslash'], fav: ['Quote'], menu: ['Backquote'] },
 };
 // Standard gamepad mapping
-const PAD_MAP = { jump: [0], undo: [1], interact: [2], rotate: [3], prev: [4], next: [5], test: [8], menu: [9], fav: [10], up: [12], down: [13], left: [14], right: [15] };
-const PAD_LABELS = { jump: 'A / Cross', undo: 'B / Circle', interact: 'X / Square', rotate: 'Y / Triangle', prev: 'LB / L1', next: 'RB / R1', test: 'Back / Share', menu: 'Start / Options', fav: 'L3 (stick click)', up: 'D-pad / stick up', down: 'D-pad / stick down', left: 'D-pad / stick left', right: 'D-pad / stick right' };
+const PAD_MAP = { jump: [0], sprint: [7, 1], undo: [1], interact: [2], rotate: [3], prev: [4], next: [5], test: [8], menu: [9], fav: [10], up: [12], down: [13], left: [14], right: [15] };
+const PAD_LABELS = { jump: 'A / Cross', sprint: 'RT / R2 or B / Circle', undo: 'B / Circle', interact: 'X / Square', rotate: 'Y / Triangle', prev: 'LB / L1', next: 'RB / R1', test: 'Back / Share', menu: 'Start / Options', fav: 'L3 (stick click)', up: 'D-pad / stick up', down: 'D-pad / stick down', left: 'D-pad / stick left', right: 'D-pad / stick right' };
 
 function keyLabel(code) {
   if (!code) return '—';

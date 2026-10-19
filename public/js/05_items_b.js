@@ -125,6 +125,16 @@ defItem('fan', {
   dyn(it, W) { const [dx, dy] = rotDir(1, 0, it.rot); const b = itemBox(it); const L = 6 * T; const r = dx ? { x: dx > 0 ? b.x + b.w : b.x - L, y: b.y - T * .25, w: L, h: b.h + T * .5 } : { x: b.x - T * .25, y: dy > 0 ? b.y + b.h : b.y - L, w: b.w + T * .5, h: L }; W.forces.push({ k: 'rect', x: r.x, y: r.y, w: r.w, h: r.h, fx: dx * 1700, fy: dy * (dy < 0 ? 2600 : 1700) }); it._fan = r; },
   draw(ctx, it, t) { if (it._fan) { const r = it._fan; ctx.globalAlpha = .25; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; const [dx, dy] = rotDir(1, 0, it.rot); for (let i = 0; i < 6; i++) { const k = ((t * 1.6 + i / 6) % 1); const x = dx ? (dx > 0 ? r.x + k * r.w : r.x + r.w - k * r.w) : r.x + (i + .5) / 6 * r.w, y = dy ? (dy > 0 ? r.y + k * r.h : r.y + r.h - k * r.h) : r.y + (i + .5) / 6 * r.h; line(ctx, x, y, x + dx * 14, y + dy * 14, '#fff', 2); } ctx.globalAlpha = 1; } withRot(ctx, it, this, (w, h) => { rr(ctx, 4, 3, w * .55, h - 6, 4); fillStroke(ctx, '#7fb6e8', 2.2); ctx.save(); ctx.translate(w * .8, h / 2); ell(ctx, 0, 0, 4, h / 2 - 2, '#ddd', 1.8); const s = Math.sin(t * 30) * (h / 2 - 4); line(ctx, 0, -s, 0, s, '#555', 2.5); ctx.restore(); }); },
 });
+defItem('bumper', {
+  name: 'Bumper', cat: 'util', w: 1, h: 1, weight: 2, rot: 'none', desc: 'Pinball bumper — bonks you away from its middle. Great for launches (or rude surprises).',
+  dyn(it, W) { W.pushers.push({ k: 'c', x: it.x + T / 2, y: it.y + T / 2, r: T * .52, ref: it, owner: it.owner }); },
+  draw(ctx, it) {
+    const x = it.x + T / 2, y = it.y + T / 2, k = 1 + ((it.st && it.st.boing) || 0) * .25;
+    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+    circ(ctx, 0, 0, T * .46, '#ff5aa8', 2.5); circ(ctx, 0, 0, T * .32, '#ffd34d', 2); circ(ctx, 0, 0, T * .16, '#ffffff', 1.5);
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(-5, -6, 4, 0, TAU); ctx.fill(); ctx.restore();
+  },
+});
 defItem('coin', {
   name: 'Golden Acorn', cat: 'util', w: 1, h: 1, weight: 2, rot: 'none', desc: 'Grab it and reach the flag for bonus points.',
   dyn(it) { it._coin = { x: it.x + T / 2, y: it.y + T / 2, r: T * .45 }; },

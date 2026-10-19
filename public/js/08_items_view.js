@@ -29,6 +29,33 @@ function makeItemView(view, it, opts = {}) {
       V.update = () => { const so = it._s && it._s[0]; if (so) pl.setPosition(so.x + so.w / 2, so.y + so.h / 2); };
       break;
     }
+    case 'windmill': {
+      const spokes = [0, 1, 2, 3].map(() => add(s.add.image(cx, cy, 'part_wspoke').setScale(.5).setOrigin(partOrigin(2.45 * T, 2), .5)));
+      base(); const hub = add(s.add.image(cx, cy, 'part_whub').setScale(.5));
+      const sails = [0, 1, 2, 3].map(() => add(s.add.image(cx, cy, 'part_wsail').setScale(.5)));
+      V.update = t => { const S = it._s || (opts.preview ? (ITEMS.windmill.dyn(it, { t, dt: 0 }), it._s) : null); if (!S) return; const M = it._wm;
+        S.forEach((so, i) => { spokes[i].setPosition(M.cx, M.cy).setRotation(Math.atan2(so.ay - M.cy, so.ax - M.cx)); sails[i].setPosition(so.x + so.w / 2, so.y + so.h / 2); }); hub.setPosition(M.cx, M.cy); };
+      break;
+    }
+    case 'swing': {
+      const an = add(s.add.image(cx, bx.y + .35 * T - 4, 'part_anchor').setScale(.5));
+      const pl = add(s.add.image(cx, cy, 'part_swing').setScale(.5));
+      V.update = t => { const P = it._sw || (opts.preview ? (ITEMS.swing.dyn(it, { t, dt: 0 }), it._sw) : null); if (!P) return; an.setPosition(P.ax, P.ay - 4);
+        const G = g(); line(G, P.ax, P.ay, P.bx - T, P.by + 2, '#8a6a40', 2.5); line(G, P.ax, P.ay, P.bx + T, P.by + 2, '#8a6a40', 2.5); pl.setPosition(P.bx, P.by + T / 4); };
+      break;
+    }
+    case 'flipper': {
+      const a = add(s.add.image(cx, cy, 'part_flipper').setScale(.5)), b2 = add(s.add.image(cx, cy, 'part_flipper_b').setScale(.5).setVisible(false));
+      const pin = add(s.add.image(cx, cy, 'part_anchor').setScale(.35));
+      V.update = () => { const st = it.st || {}; const c = st.flip > 0 ? Math.cos(st.flip * Math.PI) : 1, j = st.warn ? Math.sin(st.warn * 70) * 1.5 : 0;
+        a.setVisible(c >= 0).setScale(.5, .5 * Math.max(.06, Math.abs(c))).setPosition(cx + j, cy); b2.setVisible(c < 0).setScale(.5, .5 * Math.max(.06, Math.abs(c))).setPosition(cx + j, cy); pin.setPosition(cx, cy); };
+      break;
+    }
+    case 'bumper': {
+      const im = add(s.add.image(cx, cy, 'part_bumper').setScale(.5));
+      V.update = (t, dt) => { const st = it.st || {}; if (st.boing > 0) st.boing = Math.max(0, st.boing - (dt || .016) * 5); im.setScale(.5 * (1 + (st.boing || 0) * .25)); };
+      break;
+    }
     case 'falling': {
       const im = base();
       V.update = () => {

@@ -102,6 +102,13 @@ table.stats td:last-child{text-align:right;font-weight:700}
 #netbar{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;max-width:96vw;
   background:repeating-linear-gradient(180deg,#c88d52 0 22px,#a8703e 22px 24px);border:4px solid #5a3a1e;border-radius:14px;padding:6px 12px;box-shadow:0 5px 0 rgba(58,42,30,.4);color:#fff6e6;font-weight:700;text-shadow:0 2px 0 #5a3a1e}
 #netbar.mini{display:none!important}
+#netbar{position:fixed}
+#netbar .nb-min{position:absolute;top:-14px;right:14px;width:34px;height:24px;border:2px solid var(--ink);border-radius:8px 8px 0 0;border-bottom:none;background:#c8915a;color:#fff;font:inherit;font-size:15px;line-height:1;cursor:pointer;padding:0}
+#netbar .nb-min:hover{background:#d9a46c}
+#netbar.collapsed{padding:0;background:none;border:none;box-shadow:none;gap:0}
+#netbar .nb-tab{font:inherit;font-size:14px;color:#fff;background:linear-gradient(#c8915a,#a8743e);border:2.5px solid var(--ink);border-radius:12px;padding:5px 14px;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.25);text-shadow:0 1px 0 rgba(0,0,0,.35);letter-spacing:.04em}
+#netbar .nb-tab:hover{filter:brightness(1.08)}
+#netbar .nb-tab .nb-n{font-size:12px;opacity:.9}
 #netbar .lbl{font-size:12px;letter-spacing:.1em}
 #netbar .tiles{display:flex;gap:3px}
 #netbar .tile{display:inline-flex;width:27px;height:32px;align-items:center;justify-content:center;background:linear-gradient(#fdf0d4,#efcf98);color:var(--ink);border:2px solid var(--ink);border-radius:6px;font-size:19px;box-shadow:0 2px 0 #8a5a30;text-shadow:none;user-select:text}
@@ -117,38 +124,38 @@ table.stats td:last-child{text-align:right;font-weight:700}
 <div id="ui"></div>
 <div id="toasts"></div>
 <div id="loading">Loading Ultimate Horse Chicken…</div>
-<script src="vendor/phaser.min.js?v=5"></script>
-<script src="js/01_util.js?v=5"></script>
-<script src="js/02_input.js?v=5"></script>
-<script src="js/03_audio.js?v=5"></script>
-<script src="js/04_art_a.js?v=5"></script>
-<script src="js/04_art_b.js?v=5"></script>
-<script src="js/05_items_a.js?v=5"></script>
-<script src="js/05_items_b.js?v=5"></script>
-<script src="js/05_items_art.js?v=5"></script>
-<script src="js/06_maps_a.js?v=5"></script>
-<script src="js/06_maps_paint.js?v=5"></script>
-<script src="js/06_maps_bg.js?v=5"></script>
-<script src="js/06_maps_b.js?v=5"></script>
-<script src="js/07_logic.js?v=5"></script>
-<script src="js/07_textures.js?v=5"></script>
-<script src="js/08_engine.js?v=5"></script>
-<script src="js/08_world.js?v=5"></script>
-<script src="js/08_items_view.js?v=5"></script>
-<script src="js/09_nav.js?v=5"></script>
-<script src="js/09_hud.js?v=5"></script>
-<script src="js/10_match_a.js?v=5"></script>
-<script src="js/10_match_b.js?v=5"></script>
-<script src="js/10_match_c.js?v=5"></script>
-<script src="js/11_progress.js?v=5"></script>
-<script src="js/11_modes.js?v=5"></script>
-<script src="js/12_lobby_a.js?v=5"></script>
-<script src="js/12_lobby_b.js?v=5"></script>
-<script src="js/14_ui_a.js?v=5"></script>
-<script src="js/14_ui_b.js?v=5"></script>
-<script src="js/14_ui_c.js?v=5"></script>
-<script src="js/15_online.js?v=5"></script>
-<script src="js/16_title.js?v=5"></script>
-<script src="js/13_main.js?v=5"></script>
+<script src="vendor/phaser.min.js?v=6"></script>
+<script src="js/01_util.js?v=6"></script>
+<script src="js/02_input.js?v=6"></script>
+<script src="js/03_audio.js?v=6"></script>
+<script src="js/04_art_a.js?v=6"></script>
+<script src="js/04_art_b.js?v=6"></script>
+<script src="js/05_items_a.js?v=6"></script>
+<script src="js/05_items_b.js?v=6"></script>
+<script src="js/05_items_art.js?v=6"></script>
+<script src="js/06_maps_a.js?v=6"></script>
+<script src="js/06_maps_paint.js?v=6"></script>
+<script src="js/06_maps_bg.js?v=6"></script>
+<script src="js/06_maps_b.js?v=6"></script>
+<script src="js/07_logic.js?v=6"></script>
+<script src="js/07_textures.js?v=6"></script>
+<script src="js/08_engine.js?v=6"></script>
+<script src="js/08_world.js?v=6"></script>
+<script src="js/08_items_view.js?v=6"></script>
+<script src="js/09_nav.js?v=6"></script>
+<script src="js/09_hud.js?v=6"></script>
+<script src="js/10_match_a.js?v=6"></script>
+<script src="js/10_match_b.js?v=6"></script>
+<script src="js/10_match_c.js?v=6"></script>
+<script src="js/11_progress.js?v=6"></script>
+<script src="js/11_modes.js?v=6"></script>
+<script src="js/12_lobby_a.js?v=6"></script>
+<script src="js/12_lobby_b.js?v=6"></script>
+<script src="js/14_ui_a.js?v=6"></script>
+<script src="js/14_ui_b.js?v=6"></script>
+<script src="js/14_ui_c.js?v=6"></script>
+<script src="js/15_online.js?v=6"></script>
+<script src="js/16_title.js?v=6"></script>
+<script src="js/13_main.js?v=6"></script>
 </body>
 </html>

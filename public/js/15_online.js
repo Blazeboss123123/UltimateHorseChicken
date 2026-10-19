@@ -193,7 +193,14 @@ const NetBar = {
   render() {
     if (!this.el || !Online.code) return;
     const tiles = Online.code.split('').map(c => '<span class="tile">' + c + '</span>').join('');
-    this.el.innerHTML = '<div class="lbl">GAME CODE</div><div class="tiles">' + tiles + '</div>' +
+    const S = Save.data.settings;
+    this.el.classList.toggle('collapsed', !!S.netbarMin);
+    if (S.netbarMin) { // tucked away: just a small tab with the code — click it to open the bar again
+      this.el.innerHTML = '<button class="nb-tab" title="Show the game code bar">🔑 <b>' + esc(Online.code) + '</b> <span class="nb-n"></span> ▴</button>';
+      this.el.querySelector('.nb-tab').onclick = () => { S.netbarMin = false; Save.write(); this.render(); };
+      return;
+    }
+    this.el.innerHTML = '<button class="nb-min" title="Hide this bar (click the tab to bring it back)">▾</button><div class="lbl">GAME CODE</div><div class="tiles">' + tiles + '</div>' +
       '<button class="btn sm" data-a="copy">📋 Copy invite link</button>' +
       '<span class="nb-info"><span class="nb-n"></span> · <span class="nb-ping"></span></span>' +
       '<button class="btn sm red" data-a="leave">' + (Net.isHost ? 'Close game' : 'Leave') + '</button>';
@@ -202,6 +209,7 @@ const NetBar = {
       const ok = () => toast('📋 Invite link copied — send it to your friends!'), bad = () => UI.prompt('Copy this invite link', link, () => { });
       try { navigator.clipboard.writeText(link).then(ok, bad); } catch (e) { bad(); }
     };
+    this.el.querySelector('.nb-min').onclick = () => { S.netbarMin = true; Save.write(); this.render(); };
     this.el.querySelector('[data-a=leave]').onclick = () => UI.confirm(Net.isHost ? 'Close the game for everyone?' : 'Leave this online game?', () => Game.toTitle());
   },
   update() {
@@ -209,7 +217,7 @@ const NetBar = {
     const inLobby = Game.scene === 'lobby';
     this.el.classList.toggle('mini', !inLobby);
     const n = this.el.querySelector('.nb-n'), pg = this.el.querySelector('.nb-ping');
-    if (n) n.textContent = Online.members.length + '/8 players'; if (pg) pg.textContent = Online.ping ? Online.ping + ' ms' : '…';
+    if (n) n.textContent = this.el.classList.contains('collapsed') ? '· ' + Online.members.length + '/8' : Online.members.length + '/8 players'; if (pg) pg.textContent = Online.ping ? Online.ping + ' ms' : '…';
   },
 };
 

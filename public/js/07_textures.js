@@ -95,6 +95,13 @@ function bakeItems() {
   TEX.bake('part_arm', 2 * T, 8, g => { rr(g, 0, 0, 2 * T, 8, 4); fillStroke(g, '#a8afb8', 2); }, 2);
   TEX.bake('part_anchor', 20, 12, g => { rr(g, 0, 0, 20, 12, 3); fillStroke(g, '#7a7f88', 2); }, 2);
   TEX.bake('part_mover', 3 * T, T / 2, g => { rr(g, 0, 0, 3 * T, T / 2, 4); fillStroke(g, '#7fb6e8', 2.5); g.fillStyle = '#ffd34d'; for (let x = 8; x < 3 * T - 6; x += 14) g.fillRect(x, 4, 6, T / 2 - 8); }, 2);
+  TEX.bake('part_wsail', 2 * T, T / 2, g => { rr(g, 0, 0, 2 * T, T / 2, 4); fillStroke(g, '#e2bd86', 2.5); g.fillStyle = '#e8473f'; g.fillRect(4, 3, 2 * T - 8, 3); }, 2);
+  TEX.bake('part_wspoke', 2.45 * T, 8, g => { line(g, 0, 4, 2.45 * T, 4, '#5a3a1e', 7); line(g, 0, 4, 2.45 * T, 4, '#e8e0cc', 3.5); }, 2);
+  TEX.bake('part_whub', 28, 28, g => { circ(g, 14, 14, 12, '#e8473f', 2.5); circ(g, 14, 14, 4, '#ffd34d', 1.5); }, 2);
+  TEX.bake('part_swing', 2.5 * T, T / 2, g => drawWood(g, 0, 0, 2.5 * T, T / 2, 77, '#d8b27e'), 2);
+  TEX.bake('part_flipper', 3 * T, T / 2, g => { rr(g, 0, 0, 3 * T, T / 2, 4); fillStroke(g, '#8ccaf0', 2.5); g.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) g.fillRect(10 + i * T, T / 4 - 3, T - 20, 6); }, 2);
+  TEX.bake('part_flipper_b', 3 * T, T / 2, g => { rr(g, 0, 0, 3 * T, T / 2, 4); fillStroke(g, '#6fa0c8', 2.5); g.fillStyle = '#4a7aa0'; for (let i = 0; i < 3; i++) g.fillRect(10 + i * T, T / 4 - 3, T - 20, 6); }, 2);
+  TEX.bake('part_bumper', T, T, g => ITEMS.bumper.draw(g, fakeItem('bumper')), 3);
   TEX.bake('part_glove', 22, 22, g => { ell(g, 12, 11, 9, 10, '#e8473f', 2.2); ell(g, 8, 4, 4, 3, '#e8473f', 1.6); }, 2);
   TEX.bake('part_punch_arm', T * 2, 6, g => { g.setLineDash([3, 3]); line(g, 0, 3, T * 2, 3, '#888', 3); }, 2);
   TEX.bake('part_acorn', 24, 30, g => drawAcorn(g, 12, 18, 1, 0), 2);
@@ -113,7 +120,7 @@ function bakeItems() {
   TEX.bake('px', 2, 2, g => { g.fillStyle = '#fff'; g.fillRect(0, 0, 2, 2); }, 0, 1);
 }
 // Items that draw nothing static (their parts are separate sprites)
-const ITEM_NOBASE = new Set(['saw', 'sawarm', 'pendulum', 'spikeball', 'blackhole', 'coin', 'portal']);
+const ITEM_NOBASE = new Set(['saw', 'sawarm', 'pendulum', 'spikeball', 'blackhole', 'coin', 'portal', 'swing', 'flipper', 'bumper']);
 const ITEM_BASE = {
   mover(g, d) { g.setLineDash([4, 6]); line(g, 6, T / 4, d.w * T - 6, T / 4, 'rgba(58,42,30,.55)', 3); g.setLineDash([]); },
   puncher(g) { ITEM_ART.puncher(g, T, T, 0); },

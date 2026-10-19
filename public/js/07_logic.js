@@ -1,5 +1,5 @@
 // ===================== LOGIC WORLD (the game model; Phaser renders it and runs player physics) =====================
-const PHYS = { run: 250, accG: 2600, decG: 3000, accA: 1700, decA: 700, grav: 1900, jumpV: 610, maxFall: 820, coyote: .13, buffer: .16, wallSlide: 110, wallJumpX: 330, climbX: 180, climbV: .82, climbLock: .07, climbHold: .12, pushK: .2, holePull: 300, holeLift: 1, lowJumpMul: 2.1, minJump: .1 };
+const PHYS = { run: 250, sprint: 1.5, accG: 2600, decG: 3000, accA: 1700, decA: 700, grav: 1900, jumpV: 610, maxFall: 820, coyote: .13, buffer: .16, wallSlide: 110, wallJumpX: 330, climbX: 180, climbV: .82, climbLock: .07, climbHold: .12, pushK: .2, holePull: 300, holeLift: 1, lowJumpMul: 2.1, minJump: .1 };
 const PW = 22, PH = 28;
 
 function createWorld(map, rules) {
@@ -115,18 +115,19 @@ function explodeBomb(W, x, y) {
 // ---------- items riding on moving things (windmill sails, moving platforms) ----------
 // An item placed touching a moving platform sticks to it: it.attach = {k:'mill', i} or {k:'item', uid}
 // plus its offset (ox, oy) from the platform, and follows it every tick.
-const NO_ATTACH = new Set(['mover', 'portal', 'bomb']);
+const NO_ATTACH = new Set(['mover', 'portal', 'bomb', 'windmill', 'swing', 'flipper']);
+const HOST_ITEMS = new Set(['mover', 'windmill', 'swing']); // items whose moving platforms carry other items
 function attachHosts(W) {
   const out = [];
   if (W.map.mech === 'mill') for (let i = 0; i < 4; i++) out.push({ a: { k: 'mill', i }, s: millSail(W, i) });
-  for (const h of W.items) if (h.id === 'mover') { ITEMS.mover.dyn(h, W); out.push({ a: { k: 'item', uid: h.uid }, s: h._s[0] }); }
+  for (const h of W.items) if (HOST_ITEMS.has(h.id)) { ITEMS[h.id].dyn(h, W); h._s.forEach((s, si) => out.push({ a: si ? { k: 'item', uid: h.uid, si } : { k: 'item', uid: h.uid }, s })); }
   return out;
 }
 function hostSolid(W, a) {
   if (!a) return null;
   if (a.k === 'mill') return W.map.mech === 'mill' && a.i >= 0 && a.i < 4 ? millSail(W, a.i | 0) : null;
-  const h = W.items.find(i => i.uid === a.uid && i.id === 'mover'); if (!h) return null;
-  ITEMS.mover.dyn(h, W); return h._s[0];
+  const h = W.items.find(i => i.uid === a.uid && HOST_ITEMS.has(i.id)); if (!h) return null;
+  ITEMS[h.id].dyn(h, W); return h._s[a.si | 0] || null;
 }
 function findAttach(W, it) {
   if (NO_ATTACH.has(it.id)) return null;
@@ -141,7 +142,7 @@ function cleanAttach(a) {
   if (!a || typeof a !== 'object') return null;
   const ox = +a.ox, oy = +a.oy; if (!isFinite(ox) || !isFinite(oy) || Math.abs(ox) > 400 || Math.abs(oy) > 400) return null;
   if (a.k === 'mill' && Number.isInteger(a.i) && a.i >= 0 && a.i < 4) return { k: 'mill', i: a.i, ox, oy };
-  if (a.k === 'item' && typeof a.uid === 'string' && a.uid.length < 40) return { k: 'item', uid: a.uid, ox, oy };
+  if (a.k === 'item' && typeof a.uid === 'string' && a.uid.length < 40) { const o = { k: 'item', uid: a.uid, ox, oy }; if (Number.isInteger(a.si) && a.si > 0 && a.si < 4) o.si = a.si; return o; }
   return null;
 }
 function updateAttached(W) {

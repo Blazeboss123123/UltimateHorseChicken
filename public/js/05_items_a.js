@@ -113,6 +113,60 @@ defItem('falling', {
     ctx.restore(); ctx.globalAlpha = 1;
   },
 });
+defItem('windmill', {
+  name: 'Windmill', cat: 'block', w: 7, h: 7, weight: 2, rot: 'flip', core: [3, 3, 1, 1],
+  desc: 'Four sail platforms that wheel round and round. Hop on for a ride — items stuck to a sail ride too! Rotate to spin the other way.',
+  dyn(it, W) {
+    const cx = it.x + 3.5 * T, cy = it.y + 3.5 * T, R = 2.45 * T, w = .55 * (it.rot >= 2 ? -1 : 1), a0 = W.t * w + (it.ph || 0);
+    it._wm = { cx, cy, a: a0 };
+    it._s = [0, 1, 2, 3].map(i => { const a = a0 + i * TAU / 4, ax = cx + Math.cos(a) * R, ay = cy + Math.sin(a) * R;
+      return { x: ax - T, y: ay - T / 4, w: 2 * T, h: T / 2, vx: -Math.sin(a) * R * w, vy: Math.cos(a) * R * w, ref: it, owner: it.owner, src: this.name, key: it.uid + ':' + i, ax, ay }; });
+  },
+  draw(ctx, it, t) {
+    const b = itemBox(it), cx = b.x + 3.5 * T, cy = b.y + 3.5 * T;
+    // the stand: a little wooden tower down from the hub
+    poly(ctx, [[cx - 10, cy], [cx + 10, cy], [cx + 22, b.y + b.h], [cx - 22, b.y + b.h]], '#c58a4f', 2.5);
+    line(ctx, cx - 15, cy + 40, cx + 17, b.y + b.h - 6, '#8a5a30', 2); line(ctx, cx + 15, cy + 40, cx - 17, b.y + b.h - 6, '#8a5a30', 2);
+    rr(ctx, cx - 7, b.y + b.h - 26, 14, 20, 6); fillStroke(ctx, '#6a4224', 2);
+    const s = it._s;
+    if (s) for (const so of s) { line(ctx, cx, cy, so.ax, so.ay, '#5a3a1e', 7); line(ctx, cx, cy, so.ax, so.ay, '#e8e0cc', 3.5); }
+    circ(ctx, cx, cy, 12, '#e8473f', 2.5); circ(ctx, cx, cy, 4, '#ffd34d', 1.5);
+    if (s) for (const so of s) { rr(ctx, so.x, so.y, so.w, so.h, 4); fillStroke(ctx, '#e2bd86', 2.5); ctx.fillStyle = '#e8473f'; ctx.fillRect(so.x + 4, so.y + 3, so.w - 8, 3); }
+  },
+});
+defItem('swing', {
+  name: 'Swinging Platform', cat: 'block', w: 6, h: 4, weight: 2, rot: 'none', core: [2.5, 0, 1, 1],
+  desc: 'A plank on two ropes that swings side to side. Time your jump!',
+  dyn(it, W) {
+    const k = 1.6, A = .7, ph = W.t * k + (it.ph || 0), a = Math.sin(ph) * A, da = Math.cos(ph) * A * k, L = 2.7 * T;
+    const ax = it.x + 3 * T, ay = it.y + .35 * T, bx = ax + Math.sin(a) * L, by = ay + Math.cos(a) * L;
+    it._sw = { ax, ay, bx, by };
+    it._s = [{ x: bx - 1.25 * T, y: by, w: 2.5 * T, h: T / 2, vx: Math.cos(a) * L * da, vy: -Math.sin(a) * L * da, ref: it, owner: it.owner, src: this.name, key: it.uid + ':0' }];
+  },
+  draw(ctx, it) {
+    const P = it._sw; if (!P) { rr(ctx, it.x + 3 * T - 10, it.y + .35 * T - 10, 20, 12, 3); fillStroke(ctx, '#7a7f88', 2); return; }
+    rr(ctx, P.ax - 10, P.ay - 10, 20, 12, 3); fillStroke(ctx, '#7a7f88', 2);
+    line(ctx, P.ax, P.ay, P.bx - T, P.by, '#8a6a40', 2.5); line(ctx, P.ax, P.ay, P.bx + T, P.by, '#8a6a40', 2.5);
+    drawWood(ctx, P.bx - 1.25 * T, P.by, 2.5 * T, T / 2, 77, '#d8b27e');
+  },
+});
+defItem('flipper', {
+  name: 'Flip Platform', cat: 'block', w: 3, h: .5, weight: 2, rot: 'none',
+  desc: 'Flips over every few seconds — it wobbles first, so get off quick!',
+  dyn(it, W) {
+    const P = 4, ph = ((W.t + (it.ph || 0) + (Math.round(it.x / T) % 4) * .5) % P + P) % P; // nearby flippers don't all flip together
+    const st = it.st || (it.st = {});
+    st.warn = ph > 2.3 && ph < 2.9 ? ph - 2.3 : 0; st.flip = ph >= 2.9 && ph < 3.6 ? (ph - 2.9) / .7 : 0;
+    it._s = st.flip > 0 ? [] : staticRects(it, [[0, 0, 3, .5]]);
+  },
+  draw(ctx, it) {
+    const b = itemBox(it), st = it.st || {}, c = st.flip > 0 ? Math.cos(st.flip * TAU / 2) : 1, j = st.warn ? Math.sin(st.warn * 70) * 1.5 : 0;
+    ctx.save(); ctx.translate(b.x + b.w / 2 + j, b.y + b.h / 2); ctx.scale(1, Math.abs(c) < .08 ? .08 : c);
+    rr(ctx, -b.w / 2, -b.h / 2, b.w, b.h, 4); fillStroke(ctx, c < 0 ? '#6fa0c8' : '#8ccaf0', 2.5);
+    ctx.fillStyle = c < 0 ? '#4a7aa0' : '#ffffff'; for (let i = 0; i < 3; i++) ctx.fillRect(-b.w / 2 + 10 + i * T, -3, T - 20, 6);
+    ctx.restore(); circ(ctx, b.x + b.w / 2, b.y + b.h / 2, 5, '#ffd34d', 2);
+  },
+});
 defItem('cloud', {
   name: 'Cloud Platform', cat: 'block', w: 3, h: .5, weight: 2, rot: 'none', desc: 'Jump up through it from below.',
   solids: [[0, 0, 3, .5, { oneway: true }]],
