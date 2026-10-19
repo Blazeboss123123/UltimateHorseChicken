@@ -2,10 +2,12 @@
 function partOrigin(len, pad) { return pad / (len + pad * 2); }
 function makeItemView(view, it, opts = {}) {
   const s = view.s, d = ITEMS[it.id], bx = itemBox(it);
-  const cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2, ang = (it.rot & 3) * 90;
+  let cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2; const ang = (it.rot & 3) * 90;
   const objs = [], depth = opts.depth || 10;
   const add = o => { objs.push(o); if (o.setDepth) o.setDepth(depth); if (opts.alpha != null && o.setAlpha) o.setAlpha(opts.alpha); return o; };
-  const V = { x: it.x, y: it.y, rot: it.rot, id: it.id, objs, update() { }, destroy() { objs.forEach(o => o.destroy()); objs.length = 0; } };
+  const V = { x: it.x, y: it.y, rot: it.rot, id: it.id, it, objs, update() { }, destroy() { objs.forEach(o => o.destroy()); objs.length = 0; },
+    // the item moved (it rides a windmill sail or moving platform): slide everything along
+    relocate() { const dx = it.x - V.x, dy = it.y - V.y; for (const o of objs) { o.x += dx; o.y += dy; } cx += dx; cy += dy; V.x = it.x; V.y = it.y; } };
   const base = () => add(s.add.image(cx, cy, 'it_' + it.id).setScale(.5).setAngle(ang));
   const [dx, dy] = rotDir(1, 0, it.rot);
   const g = () => view.gx; // per-frame vector layer
@@ -88,10 +90,9 @@ function makeItemView(view, it, opts = {}) {
     }
     case 'puncher': {
       base();
-      const ox = cx + dx * T / 2, oy = cy + dy * T / 2;
-      const arm = add(s.add.image(ox, oy, 'part_punch_arm').setScale(0, .5).setOrigin(partOrigin(2 * T, 2), .5).setAngle(ang));
-      const glove = add(s.add.image(ox + dx * 6, oy + dy * 6, 'part_glove').setScale(.5).setAngle(ang));
-      V.update = () => { const P = it._pu; const Lx = P ? P.L : 0; arm.setScale(.5 * Lx / (2 * T), .5); glove.setPosition(ox + dx * (Lx + 8), oy + dy * (Lx + 8)); };
+      const arm = add(s.add.image(cx + dx * T / 2, cy + dy * T / 2, 'part_punch_arm').setScale(0, .5).setOrigin(partOrigin(2 * T, 2), .5).setAngle(ang));
+      const glove = add(s.add.image(cx + dx * T / 2 + dx * 6, cy + dy * T / 2 + dy * 6, 'part_glove').setScale(.5).setAngle(ang));
+      V.update = () => { const P = it._pu; const Lx = P ? P.L : 0, ox = cx + dx * T / 2, oy = cy + dy * T / 2; arm.setPosition(ox, oy).setScale(.5 * Lx / (2 * T), .5); glove.setPosition(ox + dx * (Lx + 8), oy + dy * (Lx + 8)); };
       break;
     }
     case 'crossbow': case 'cannon': {
@@ -119,7 +120,7 @@ class Preview {
     const d = ITEMS[it.id]; const sw = _wt; if (d.dyn) { try { d.dyn(this.it, W0); } catch (e) { } } _wt = sw;
     this.v.update(t, 0);
     const G = this.view.gf, b = itemBox(it);
-    G.save(); G.setLineDash([7, 5]); G.strokeStyle = ok ? '#3fd06a' : '#ff3a3a'; G.lineWidth = 3; G.strokeRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6); G.restore();
+    G.save(); G.setLineDash([7, 5]); G.strokeStyle = ok ? color : '#ff3a3a'; G.lineWidth = 3; G.strokeRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6); G.restore();
     if (!ok) { G.fillStyle = 'rgba(255,40,40,.18)'; G.fillRect(b.x, b.y, b.w, b.h); }
     if (it.id === 'bomb') { G.beginPath(); G.arc(b.x + b.w / 2, b.y + b.h / 2, BOMB_RADIUS, 0, TAU); G.fillStyle = 'rgba(255,120,40,.15)'; G.fill(); G.save(); G.setLineDash([6, 6]); G.strokeStyle = '#ff7a2a'; G.lineWidth = 2.5; G.stroke(); G.restore(); }
     circ(G, b.x + b.w / 2, b.y + b.h / 2, 5, color, 2);

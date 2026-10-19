@@ -43,6 +43,11 @@ function mapThumb(m, w, h, items) {
 }
 
 // ---------------- MAP MECHANICS ----------------
+// One of the four windmill sail platforms at the world's current time (a pure function of W.t).
+function millSail(W, i) {
+  const cx = 28 * T, cy = 9 * T, R = 6 * T, a = W.t * .42 + i * TAU / 4, ax = cx + Math.cos(a) * R, ay = cy + Math.sin(a) * R;
+  return { x: ax - 1.5 * T, y: ay, w: 3 * T, h: T / 2, vx: -Math.sin(a) * R * .42, vy: Math.cos(a) * R * .42, src: 'mill', key: 'mill' + i, ax, ay };
+}
 const MECH = {
   wind: {
     tick(W) { const P = 9, ph = W.t % P, cyc = Math.floor(W.t / P); W.ms.windDir = cyc % 2 ? -1 : 1; W.ms.windWarn = ph > 4.5 && ph < 5.5; W.ms.wind = ph >= 5.5 && ph < 8.5; if (W.ms.wind) W.forces.push({ k: 'rect', x: -999, y: -999, w: 99999, h: 99999, fx: W.ms.windDir * 950, fy: 0 }); },
@@ -72,10 +77,7 @@ const MECH = {
     drawBack(ctx, W, t) { const x = 24 * T, w = 4 * T; const g = ctx.createLinearGradient(x, 0, x + w, 0); g.addColorStop(0, 'rgba(120,200,255,.55)'); g.addColorStop(.5, 'rgba(220,245,255,.7)'); g.addColorStop(1, 'rgba(120,200,255,.55)'); ctx.fillStyle = g; ctx.fillRect(x, -400, w, W.map.h * T + 600); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2; for (let i = 0; i < 10; i++) { const yy = ((t * 500 + i * 97) % (W.map.h * T + 200)) - 200; line(ctx, x + 10 + i * 11, yy, x + 10 + i * 11, yy + 50, 'rgba(255,255,255,.7)', 2); } for (let i = 0; i < 5; i++) circ(ctx, x + w / 2 + Math.sin(t * 3 + i) * 50, W.map.h * T - 10, 20 + Math.sin(t * 5 + i) * 6, 'rgba(255,255,255,.6)', 0); },
   },
   mill: {
-    tick(W) {
-      const cx = 28 * T, cy = 9 * T, R = 6 * T, a0 = W.t * .42; W.ms.mill = [];
-      for (let i = 0; i < 4; i++) { const a = a0 + i * TAU / 4; const x = cx + Math.cos(a) * R - 1.5 * T, y = cy + Math.sin(a) * R; const vx = -Math.sin(a) * R * .42, vy = Math.cos(a) * R * .42; W.ms.mill.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]); W.solids.push({ x, y, w: 3 * T, h: T / 2, vx, vy, src: 'mill' }); }
-    },
+    tick(W) { W.ms.mill = []; for (let i = 0; i < 4; i++) { const sl = millSail(W, i); W.ms.mill.push([sl.ax, sl.ay]); W.solids.push(sl); } },
     drawBack(ctx, W, t) { const cx = 28 * T, cy = 9 * T; for (const [x, y] of W.ms.mill || []) { line(ctx, cx, cy, x, y, '#8a6a4a', 8); const a = Math.atan2(y - cy, x - cx); ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); rr(ctx, 30, -14, 6 * T - 60, 28, 3); fillStroke(ctx, 'rgba(255,250,235,.85)', 2.5); for (let k = 50; k < 6 * T - 40; k += 26) line(ctx, k, -14, k, 14, 'rgba(58,42,30,.35)', 1.5); ctx.restore(); } circ(ctx, cx, cy, 16, '#a0703f', 3); },
     drawMid(ctx, W) { for (const s of W.solids) if (s.src === 'mill') { rr(ctx, s.x, s.y, s.w, s.h, 4); fillStroke(ctx, '#d49a5c', 2.5); } },
   },

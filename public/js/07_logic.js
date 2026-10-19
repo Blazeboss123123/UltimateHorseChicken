@@ -30,12 +30,13 @@ function createWorld(map, rules) {
 function stepWorld(W, dt) {
   W.t += dt; W.dt = dt;
   W.forces = []; W.pushers = []; W.hazards = [];
+  updateAttached(W);
   tickItems(W);
   const S = W.terrainSolids.slice();
   for (const it of W.items) {
     const d = ITEMS[it.id];
     if (d.solids) { if (!it._s || it._sx !== it.x || it._sy !== it.y || it._sr !== it.rot) { it._s = staticRects(it, d.solids); it._sx = it.x; it._sy = it.y; it._sr = it.rot; } }
-    if (it._s) for (const s of it._s) S.push(s);
+    if (it._s) { if (it.attach) it._s.forEach((s, k) => { s.vx = it._avx; s.vy = it._avy; s.key = it.uid + ':' + k; }); for (const s of it._s) S.push(s); }
     if (it._h) for (const h of it._h) W.hazards.push(h);
   }
   W.solids = S;
@@ -92,12 +93,13 @@ function placementCheck(W, it, opts = {}) {
   const pad = { x: W.start.x - 6, y: W.start.y - 2 * T, w: W.start.w + 12, h: W.start.h + 2 * T };
   if (rectsOverlap(box, pad)) return { ok: false, why: 'Too close to the start' };
   if (rectsOverlap(box, W.goalZone)) return { ok: false, why: 'Too close to the flag' };
-  if (W.map.mech === 'mill') { const hx = 28 * T, hy = 9 * T; const nx = clamp(hx, box.x, box.x + box.w), ny = clamp(hy, box.y, box.y + box.h); const dmin = Math.hypot(nx - hx, ny - hy); const dmax = Math.max(...[[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].map(([x, y]) => Math.hypot(x - hx, y - hy))); if (dmin < 7.8 * T && dmax > 4.2 * T) return { ok: false, why: 'Blocks the windmill sails' }; }
-  if (opts.allowOverlap || W.rules.allowOverlap) return { ok: true };
+  const att = opts.attach !== undefined ? opts.attach : findAttach(W, it);
+  if (W.map.mech === 'mill' && !(att && att.k === 'mill')) { const hx = 28 * T, hy = 9 * T; const nx = clamp(hx, box.x, box.x + box.w), ny = clamp(hy, box.y, box.y + box.h); const dmin = Math.hypot(nx - hx, ny - hy); const dmax = Math.max(...[[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].map(([x, y]) => Math.hypot(x - hx, y - hy))); if (dmin < 7.8 * T && dmax > 4.2 * T) return { ok: false, why: 'In the way of the sails — put it right on a sail to ride along!' }; }
+  if (opts.allowOverlap || W.rules.allowOverlap) return { ok: true, attach: att };
   const shrink = { x: core.x + 1, y: core.y + 1, w: core.w - 2, h: core.h - 2 };
   for (const s of W.terrainSolids.concat(W.discoSolids)) if (!s.wall && rectsOverlap(shrink, s)) return { ok: false, why: 'Overlaps the level' };
-  for (const o of W.items) if (o !== it && o.uid !== it.uid && rectsOverlap(shrink, itemCore(o))) return { ok: false, why: 'Overlaps another item' };
-  return { ok: true };
+  for (const o of W.items) if (o !== it && o.uid !== it.uid && !(att && att.k === 'item' && o.uid === att.uid) && rectsOverlap(shrink, itemCore(o))) return { ok: false, why: 'Overlaps another item' };
+  return { ok: true, attach: att };
 }
 function explodeBomb(W, x, y) {
   let n = 0;
@@ -109,3 +111,53 @@ function explodeBomb(W, x, y) {
   return n;
 }
 
+
+// ---------- items riding on moving things (windmill sails, moving platforms) ----------
+// An item placed touching a moving platform sticks to it: it.attach = {k:'mill', i} or {k:'item', uid}
+// plus its offset (ox, oy) from the platform, and follows it every tick.
+const NO_ATTACH = new Set(['mover', 'portal', 'bomb']);
+function attachHosts(W) {
+  const out = [];
+  if (W.map.mech === 'mill') for (let i = 0; i < 4; i++) out.push({ a: { k: 'mill', i }, s: millSail(W, i) });
+  for (const h of W.items) if (h.id === 'mover') { ITEMS.mover.dyn(h, W); out.push({ a: { k: 'item', uid: h.uid }, s: h._s[0] }); }
+  return out;
+}
+function hostSolid(W, a) {
+  if (!a) return null;
+  if (a.k === 'mill') return W.map.mech === 'mill' && a.i >= 0 && a.i < 4 ? millSail(W, a.i | 0) : null;
+  const h = W.items.find(i => i.uid === a.uid && i.id === 'mover'); if (!h) return null;
+  ITEMS.mover.dyn(h, W); return h._s[0];
+}
+function findAttach(W, it) {
+  if (NO_ATTACH.has(it.id)) return null;
+  const b = itemBox(it), m = 5;
+  for (const H of attachHosts(W)) {
+    const s = H.s;
+    if (b.x < s.x + s.w + m && b.x + b.w > s.x - m && b.y < s.y + s.h + m && b.y + b.h > s.y - m) return Object.assign({}, H.a, { ox: Math.round(it.x - s.x), oy: Math.round(it.y - s.y) });
+  }
+  return null;
+}
+function cleanAttach(a) {
+  if (!a || typeof a !== 'object') return null;
+  const ox = +a.ox, oy = +a.oy; if (!isFinite(ox) || !isFinite(oy) || Math.abs(ox) > 400 || Math.abs(oy) > 400) return null;
+  if (a.k === 'mill' && Number.isInteger(a.i) && a.i >= 0 && a.i < 4) return { k: 'mill', i: a.i, ox, oy };
+  if (a.k === 'item' && typeof a.uid === 'string' && a.uid.length < 40) return { k: 'item', uid: a.uid, ox, oy };
+  return null;
+}
+function updateAttached(W) {
+  for (const it of W.items) {
+    if (!it.attach) continue;
+    const s = hostSolid(W, it.attach); if (!s) { it.attach = null; it._avx = it._avy = 0; continue; }
+    it.x = s.x + it.attach.ox; it.y = s.y + it.attach.oy; it._avx = s.vx || 0; it._avy = s.vy || 0;
+  }
+}
+// Level item lists: [id, x, y, rot, attach?] — a moving-platform host is stored by its index in the list.
+function itemsToList(items) {
+  const list = items.filter(i => !i.mapOwned);
+  return list.map(i => { const r = [i.id, Math.round(i.x), Math.round(i.y), i.rot]; if (i.attach) { const a = Object.assign({}, i.attach); if (a.k === 'item') { a.n = list.findIndex(h => h.uid === a.uid); delete a.uid; } if (a.k === 'mill' || a.n >= 0) r.push(a); } return r; });
+}
+function itemsFromList(list, prefix) {
+  const out = list.map((c, i) => { const it = makeItem(c[0], c[1], c[2], c[3], -1); if (prefix) it.uid = prefix + i; return it; });
+  list.forEach((c, i) => { const a = c[4]; if (!a || typeof a !== 'object') return; const b = Object.assign({}, a); if (b.k === 'item') { const h = out[b.n]; if (!h) return; b.uid = h.uid; delete b.n; } const ok = cleanAttach(b); if (ok) out[i].attach = ok; });
+  return out;
+}

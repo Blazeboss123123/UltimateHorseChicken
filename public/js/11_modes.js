@@ -75,7 +75,7 @@ class EditorScene extends Phaser.Scene {
     this.rig = new CamRig(this.cameras.main); this.split = this.rig.split = new SplitCams(this, this.rig);
     const map = MAP_BY_ID[this.mapId], level = this.levelData;
     const W = this.W = createWorld(map, Object.assign({}, Save.data.rules, { allowOverlap: false }));
-    if (level) for (const c of level.items) W.items.push(makeItem(c[0], c[1], c[2], c[3], -1));
+    if (level) for (const it of itemsFromList(level.items)) W.items.push(it);
     W.players = Session.roster.map((e, i) => newPlayer(e, i));
     W.onFinish = p => { if (!Ed.E.verified) toast('✅ Level verified — you can publish it now!'); Ed.E.verified = true; p.respawnAt = Ed.E.t + 1.5; };
     W.onDeath = () => { Save.data.stats.deaths++; };
@@ -92,7 +92,7 @@ class EditorScene extends Phaser.Scene {
     this.events.once('shutdown', () => { this.scale.off('resize', this.onResize, this); UI.editorBars(false, true); this.view.destroy(); Ed.E = null; Ed.scene = null; });
   }
   onResize() { this.view.resize(); }
-  level() { const E = Ed.E; return { name: E.name, map: E.map.id, items: E.W.items.filter(i => !i.mapOwned).map(i => [i.id, i.x, i.y, i.rot]) }; }
+  level() { const E = Ed.E; return { name: E.name, map: E.map.id, items: itemsToList(E.W.items) }; }
   changed() { if (Ed.E) Ed.E.verified = false; }
   toggleTest() {
     const E = Ed.E, W = E.W;
@@ -135,7 +135,7 @@ class EditorScene extends Phaser.Scene {
       if (inp.pressed.interact || (mouse && Input.mouse.clicked)) {
         if (!c.valid.ok) { Audio2.sfx('bad'); toast(c.valid.why); }
         else if (ITEMS[holdId].instant) { const b = itemBox(prev); explodeBomb(W, b.x + b.w / 2, b.y + b.h / 2); this.changed(); }
-        else { const it = makeItem(holdId, prev.x, prev.y, holdRot, -1); W.items.push(it); stepWorld(W, 0); this.view.addItem(it); c.grab = null; Audio2.sfx('place'); this.changed(); }
+        else { const it = makeItem(holdId, prev.x, prev.y, holdRot, -1); it.attach = findAttach(W, it); W.items.push(it); stepWorld(W, 0); this.view.addItem(it); c.grab = null; Audio2.sfx('place'); this.changed(); }
       }
       if (inp.pressed.jump && !c.grab) { const it = this.itemUnder(c.cx, c.cy); if (it) { W.items = W.items.filter(o => o !== it); this.view.removeItem(it); c.grab = { id: it.id, rot: it.rot, orig: it }; Audio2.sfx('pick'); this.changed(); } }
       else if (inp.pressed.jump && c.grab) { W.items.push(c.grab.orig); this.view.addItem(c.grab.orig); c.grab = null; Audio2.sfx('click'); }

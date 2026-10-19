@@ -86,8 +86,8 @@ defItem('mover', {
     const vert = it.rot & 1, L = 4 * T, p = (Math.sin(W.t * 1.3 + (it.ph || 0)) + 1) / 2, dp = Math.cos(W.t * 1.3 + (it.ph || 0)) * 1.3 / 2 * L;
     const flip = it.rot >= 2 ? -1 : 1;
     const off = (flip > 0 ? p : 1 - p) * L, vel = dp * flip;
-    if (!vert) it._s = [{ x: it.x + off, y: it.y, w: 3 * T, h: T / 2, vx: vel, vy: 0, ref: it, src: this.name }];
-    else it._s = [{ x: it.x, y: it.y + off, w: T / 2, h: 3 * T, vx: 0, vy: vel, ref: it, src: this.name }];
+    if (!vert) it._s = [{ x: it.x + off, y: it.y, w: 3 * T, h: T / 2, vx: vel, vy: 0, ref: it, src: this.name, key: it.uid }];
+    else it._s = [{ x: it.x, y: it.y + off, w: T / 2, h: 3 * T, vx: 0, vy: vel, ref: it, src: this.name, key: it.uid }];
   },
   draw(ctx, it) {
     const b = itemBox(it); const vert = it.rot & 1;

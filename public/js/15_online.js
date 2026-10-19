@@ -5,11 +5,11 @@ const NET_PROTO = 1;
 const PS_STATES = ['idle', 'run', 'jump', 'fall', 'wall', 'climb', 'stun', 'dance'];
 const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // actions a guest may ask the host to perform (always about their own player)
-const GUEST_REQUESTS = new Set(['pick', 'place', 'undo', 'next', 'death', 'fin', 'coin']);
+const GUEST_REQUESTS = new Set(['pick', 'place', 'undo', 'death', 'fin', 'coin']);
 // cosmetic messages any player may send directly
 const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'respawn', 'pfail']);
 // events that belong to a running match (queued if the match scene isn't up yet)
-const MATCH_EVENTS = new Set(['round', 'pick', 'build', 'place', 'undo', 'next', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
+const MATCH_EVENTS = new Set(['round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
 
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/O/g, '0').replace(/I/g, '1').split('').filter(c => CODE_ALPHA.includes(c)).join('').slice(0, 6); }
 
@@ -95,7 +95,6 @@ const Online = {
       delete a.req;
       const M = Match.M; if (!M) return;
       const p = M.players[a.pi]; if (!p || p.entry.netId !== from) return; // only about their own player
-      if (a.t === 'next' && !(M.placing && M.players[M.placing.pi].entry.netId === from)) return;
       if (a.t === 'place') a.uid = uid();
       Net.remote = false;
       const ok = Net.apply(a, from);

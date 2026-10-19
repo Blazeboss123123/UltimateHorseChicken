@@ -118,7 +118,7 @@ const UI = {
   howto() {
     this.open('<h2>📖 How to play</h2>' +
       '<p><b>The idea:</b> together you build an obstacle course, then race through it. Make it hard enough to trap your friends — but not so hard that you can\'t finish yourself!</p>' +
-      '<h3>Each round</h3><p>1. <b>Pick</b> — take turns choosing an item from the party box.<br>2. <b>Build</b> — take turns placing it anywhere on the level (not on the start or flag).<br>3. <b>Race</b> — everyone runs at once. Reach the flag!</p>' +
+      '<h3>Each round</h3><p>1. <b>Pick</b> — everyone grabs an item from the party box at the same time (first come, first served).<br>2. <b>Build</b> — everyone places their item at the same time, anywhere on the level (not on the start or flag). Put things on windmill sails or moving platforms and they ride along!<br>3. <b>Race</b> — everyone runs at once. Reach the flag!</p>' +
       '<h3>Points</h3><p>🚩 Finish · ⭐ First to finish · 🦸 Only finisher · 🌰 Bring the golden acorn · 🐢 Underdog (finish while in last place) · 🪤 Your traps catch other players.<br><b>Too easy</b> (everyone finishes) or <b>too hard</b> (nobody finishes) = no points for anyone.</p>' +
       '<h3>Moves</h3><p>Hold jump to jump higher. Slide down walls and jump off them. To climb a wall, hold towards it and keep tapping jump — every bounce takes you a little higher. Hold up on vines and ladders. Down + jump drops through cloud platforms. Honey lets you cling to walls.</p>' +
       '<h3>Online with friends</h3><p>On the title screen one person presses <b>Host a game</b> and gets a 6-letter <b>game code</b>. Everyone else types that code under <b>Join</b> (or opens the invite link). The host picks the map; everybody plays on their own device.</p>' +

@@ -79,7 +79,7 @@ const Match = {
   start(scene, mode, mapId, custom) {
     const map = MAP_BY_ID[mapId], rules = Net.online && Net.rules ? Net.rules : Save.data.rules;
     const W = createWorld(map, rules);
-    if (custom && custom.items) custom.items.forEach((c, i) => { const it = makeItem(c[0], c[1], c[2], c[3], -1); it.uid = 'c' + i; it.fixed = true; W.items.push(it); });
+    if (custom && custom.items) for (const it of itemsFromList(custom.items, 'c')) { it.fixed = true; W.items.push(it); }
     const players = Session.roster.map((e, i) => newPlayer(e, i));
     W.players = players;
     stepWorld(W, 0);
@@ -88,9 +88,9 @@ const Match = {
     view.setPlayers(players);
     const M = this.M = {
       W, view, scene, rig: scene.rig, mode, map, rules, players, round: 0, phase: 'intro', timer: 2.2, scores: players.map(() => ({ total: 0, segs: [] })),
-      order: [], box: [], hands: players.map(() => []), turn: 0, picker: null, pickCursor: 0, placing: null, undoT: 0, lastPlaced: null,
+      order: [], box: [], hands: players.map(() => []), pickCur: [], builders: null, previews: [],
       raceT: 0, countdown: 0, finishOrder: [], deaths: [], coinsGot: [], roundAward: null, resultsT: 0, banner: null, winners: null, msg: null,
-      t: 0, custom, preview: new Preview(view), boxRects: null,
+      t: 0, custom, boxRects: null,
       host: !Net.online || Net.isHost, me: players.find(p => !p.entry.remote) || null, done: {}, coinOwner: {}, curT: 0,
     };
     W.onDeath = (p, cause) => this.onDeath(p, cause);
@@ -124,78 +124,71 @@ const Match = {
     M.W.projs = []; for (const it of M.W.items) it.st = {}; M.coinOwner = {};
     M.players.forEach(p => { this.hide(p); p.finished = false; p.coin = null; });
     if (a.hands) { M.phase = 'dealt'; M.timer = 2.4; Audio2.sfx('pick'); }
-    else { M.box = a.box.map(id => ({ id, by: -1 })); M.turn = 0; M.phase = 'pick'; M.timer = M.rules.pickTime; M.pickCursor = 0; this.nextPicker(true); }
+    else { M.box = a.box.map(id => ({ id, by: -1 })); this.startPick(); }
     Audio2.play('build');
     return true;
   },
-  pickSeq() { const M = this.M; const seq = []; for (let k = 0; k < M.rules.perPlayer; k++) seq.push(...(k % 2 ? M.order.slice().reverse() : M.order)); return seq; },
-  nextPicker(first) {
-    const M = this.M, seq = this.pickSeq();
-    if (!first) M.turn++;
-    if (M.turn >= seq.length) { this.beginBuild(); return; }
-    M.picker = seq[M.turn]; M.timer = M.rules.pickTime;
-    const free = M.box.findIndex(b => b.by < 0); M.pickCursor = Math.max(0, free);
+  // ---------- pick: everyone grabs from the party box at the same time ----------
+  needsPick(pi) { const M = this.M, p = M.players[pi]; return !!p && !p.gone && M.order.includes(pi) && M.hands[pi].length < M.rules.perPlayer; },
+  freeBoxes() { const M = this.M; return M.box.map((b, i) => (b.by < 0 || M.mode === 'creative') ? i : -1).filter(i => i >= 0); },
+  startPick() {
+    const M = this.M; M.phase = 'pick'; M.timer = M.rules.pickTime;
+    const free = this.freeBoxes(); M.pickCur = M.players.map((p, i) => free.length ? free[(i * 2) % free.length] : 0);
   },
-  doPick(pi, boxIdx, turn) {
-    const M = this.M; if (!M || M.phase !== 'pick') return false; const b = M.box[boxIdx];
-    if (turn != null && turn !== M.turn) return false;
-    if (!b || (b.by >= 0 && M.mode !== 'creative') || M.picker !== pi) return false;
+  doPick(pi, boxIdx) {
+    const M = this.M; if (!M || M.phase !== 'pick' || !this.needsPick(pi)) return false;
+    const b = M.box[boxIdx]; if (!b || (b.by >= 0 && M.mode !== 'creative')) return false;
     if (M.mode !== 'creative') b.by = pi;
     M.hands[pi].push(b.id); Audio2.sfx('pick');
-    this.nextPicker(false);
+    if (!M.order.some(i => this.needsPick(i)) || !this.freeBoxes().length) this.beginBuild();
     return true;
   },
-  autoPick() { const M = this.M; const free = M.box.map((b, i) => (b.by < 0 || M.mode === 'creative') ? i : -1).filter(i => i >= 0); Net.dispatch({ t: 'pick', pi: M.picker, box: pick(free), turn: M.turn }); },
+  autoPick(pi) { const free = this.freeBoxes(); if (free.length) Net.dispatch({ t: 'pick', pi, box: pick(free) }); },
+  // ---------- build: everyone places their item(s) at the same time ----------
   beginBuild() {
-    const M = this.M; M.phase = 'build'; M.turn = 0;
-    const used = M.players.map(() => 0);
-    M.buildSeq = this.pickSeq().map(pi => ({ pi, id: M.hands[pi][used[pi]++] })).filter(s => s.id);
-    this.nextPlacer(true);
+    const M = this.M; if (M.phase === 'build') return; M.phase = 'build';
+    M.timer = M.rules.buildTime * Math.max(1, M.rules.perPlayer); M.allDoneT = null;
+    for (const pv of M.previews || []) if (pv) pv.hide();
+    M.previews = M.players.map(() => new Preview(M.view));
+    M.builders = M.players.map((p, i) => ({ pi: i, queue: (M.hands[i] || []).slice(), n: 0, rot: 0, holdT: 0, valid: null, preview: null, last: null, placedAt: -9, curT: 0,
+      cx: M.map.w * T * (.3 + .4 * ((i * 37) % 10) / 10), cy: M.map.h * T * .35 }));
   },
-  nextPlacer(first) {
-    const M = this.M;
-    if (!first) M.turn++;
-    M.preview.hide();
-    if (M.turn >= M.buildSeq.length) { this.beginRace(); return; }
-    const s = M.buildSeq[M.turn], prev = M.placing;
-    M.placing = { pi: s.pi, id: s.id, rot: 0, cx: prev ? prev.cx : M.map.w * T / 2, cy: prev ? prev.cy : M.map.h * T / 2, holdT: 0, valid: null };
-    M.timer = M.rules.buildTime; M.undoT = 0; M.lastPlaced = null;
-  },
-  applyNext(a) {
-    const M = this.M; if (!M || M.phase !== 'build' || a.turn !== M.turn) return false;
-    if (a.msg) M.msg = { s: a.msg, t: 2 };
-    this.nextPlacer(false); return true;
-  },
+  builderDone(b) { return !b || b.n >= b.queue.length || this.M.players[b.pi].gone; },
   applyPlace(a, from) {
-    const M = this.M; if (!M || M.phase !== 'build' || !M.placing || M.placing.pi !== a.pi || M.placing.done) return false;
-    if (a.turn != null && a.turn !== M.turn) return false;
+    const M = this.M; if (!M || M.phase !== 'build') return false;
+    const B = M.builders[a.pi]; if (!B || this.builderDone(B) || a.n !== B.n || B.queue[B.n] !== a.id) return false;
     const it = makeItem(a.id, a.x, a.y, a.rot, a.pi); if (a.uid) it.uid = a.uid;
+    const att = cleanAttach(a.attach); if (att) { const hs = hostSolid(M.W, att); if (hs) { it.attach = att; it.x = hs.x + att.ox; it.y = hs.y + att.oy; } }
     if (!Net.remote) { // the host (or an offline game) checks the spot; guests trust the host
-      const chk = placementCheck(M.W, it);
+      const chk = placementCheck(M.W, it, att ? { attach: it.attach || null } : {});
       if (!chk.ok) { Audio2.sfx('bad'); if (from) Online.send({ t: 'cast', to: from, m: { t: 'pfail', why: chk.why } }); else M.msg = { s: chk.why, t: 1.4 }; return false; }
+      if (!it.attach && chk.attach) { it.attach = chk.attach; a.attach = chk.attach; }
     }
-    if (ITEMS[a.id].instant) { const b = itemBox(it); const n = explodeBomb(M.W, b.x + b.w / 2, b.y + b.h / 2); if (!M.players[a.pi].entry.remote) Save.data.stats.bombs += n; M.lastPlaced = null; this.nextPlacer(false); return true; }
-    M.W.items.push(it); M.lastPlaced = it; stepWorld(M.W, 0); M.view.addItem(it);
-    if (!M.players[a.pi].entry.remote) Save.data.stats.placed++;
-    Audio2.sfx('place'); const b = itemBox(it); FX.burst(b.x + b.w / 2, b.y + b.h, 10, { color: '#ffffff', kind: 'puff', g: -20, smin: 30, smax: 120 }); M.view.shake(3);
-    M.preview.hide();
-    if (M.rules.allowUndo) { M.undoT = 1.6; M.placing.done = true; } else this.nextPlacer(false);
+    const local = !M.players[a.pi].entry.remote;
+    B.n++; B.placedAt = M.t; M.allDoneT = null;
+    if (ITEMS[a.id].instant) { const b = itemBox(it); const n = explodeBomb(M.W, b.x + b.w / 2, b.y + b.h / 2); if (local) Save.data.stats.bombs += n; B.last = null; return true; }
+    M.W.items.push(it); B.last = it; stepWorld(M.W, 0); M.view.addItem(it);
+    if (local) Save.data.stats.placed++;
+    Audio2.sfx('place'); const b = itemBox(it); FX.burst(b.x + b.w / 2, b.y + b.h, 10, { color: '#ffffff', kind: 'puff', g: -20, smin: 30, smax: 120 }); if (local) M.view.shake(3);
+    if (M.previews[a.pi]) M.previews[a.pi].hide();
     return true;
   },
+  applySkip(a) { const M = this.M; if (!M || M.phase !== 'build') return false; const B = M.builders[a.pi]; if (!B || a.n !== B.n || this.builderDone(B)) return false; B.n++; B.last = null; M.allDoneT = null; if (a.msg) M.msg = { s: a.msg, t: 2 }; return true; },
   undo(a) {
-    const M = this.M; if (!M || M.phase !== 'build' || !M.placing || !M.lastPlaced) return false;
-    if (a && (a.pi !== M.placing.pi || a.turn !== M.turn)) return false;
-    if (!Net.remote && M.undoT <= 0) return false;
-    M.view.removeItem(M.lastPlaced); M.W.items = M.W.items.filter(i => i !== M.lastPlaced); M.lastPlaced = null; M.undoT = 0; M.placing.done = false; M.timer = Math.max(M.timer, 6);
-    Audio2.sfx('click'); if (!M.players[M.placing.pi].entry.remote) Save.data.stats.placed--;
+    const M = this.M; if (!M || M.phase !== 'build' || !M.rules.allowUndo) return false;
+    const B = M.builders[a.pi]; if (!B || !B.last || a.n !== B.n - 1) return false;
+    M.view.removeItem(B.last); M.W.items = M.W.items.filter(i => i !== B.last); B.last = null; B.n--; M.allDoneT = null;
+    M.timer = Math.max(M.timer, 6);
+    Audio2.sfx('click'); if (!M.players[a.pi].entry.remote) Save.data.stats.placed--;
     return true;
   },
+  applyRaceStart(a) { const M = this.M; if (!M || M.phase !== 'build' || a.round !== M.round) return false; this.beginRace(); return true; },
   // ---------- race ----------
   beginRace() {
     const M = this.M, W = M.W;
-    M.phase = 'race'; M.countdown = 3.2; M.raceT = M.rules.raceTime; M.finishOrder = []; M.deaths = []; M.coinsGot = []; M.endT = 0; M.placing = null; M.goT = 0; M.coinOwner = {};
+    M.phase = 'race'; M.countdown = 3.2; M.raceT = M.rules.raceTime; M.finishOrder = []; M.deaths = []; M.coinsGot = []; M.endT = 0; M.builders = null; M.goT = 0; M.coinOwner = {};
     W.t = 0; W.projs = []; for (const it of W.items) it.st = {};
-    M.preview.hide();
+    for (const pv of M.previews || []) if (pv) pv.hide();
     spawnPlayers(W, M.players);
     M.players.forEach(p => { p.alive = !p.gone; p.finished = false; p.deathT = 0; p.state = 'idle'; if (p.gone) this.hide(p); });
     Audio2.play('race'); Audio2.sfx('beep'); M.lastBeep = 3;
@@ -304,11 +297,12 @@ const Match = {
 };
 // Match events (see the note above). Events that arrive before the match scene exists are queued.
 Net.on('round', a => Match.applyRound(a));
-Net.on('pick', a => Match.doPick(a.pi, a.box, a.turn));
+Net.on('pick', a => Match.doPick(a.pi, a.box));
+Net.on('skip', a => Match.applySkip(a));
+Net.on('race', a => Match.applyRaceStart(a));
 Net.on('build', a => { const M = Match.M; if (!M || M.phase !== 'dealt' || a.round !== M.round) return false; Match.beginBuild(); return true; });
 Net.on('place', (a, from) => Match.applyPlace(a, from));
 Net.on('undo', a => Match.undo(a));
-Net.on('next', a => Match.applyNext(a));
 Net.on('death', a => Match.applyDeath(a));
 Net.on('fin', a => Match.applyFin(a));
 Net.on('coin', a => Match.applyCoin(a));
@@ -317,8 +311,8 @@ Net.on('podium', a => Match.applyPodium(a));
 Net.on('gone', a => Match.applyGone(a));
 Net.on('toLobby', () => { Game.toLobby(); return true; });
 // cosmetic messages straight from the player concerned
-Net.on('cur', a => { const M = Match.M; if (!M || M.phase !== 'build' || !M.placing || M.placing.pi !== a.pi || a.turn !== M.turn) return; M.placing.cx = a.x; M.placing.cy = a.y; M.placing.rot = a.r; });
-Net.on('pcur', a => { const M = Match.M; if (M && M.phase === 'pick' && a.turn === M.turn) M.pickCursor = a.i; });
+Net.on('cur', a => { const M = Match.M; if (!M || M.phase !== 'build' || !M.builders) return; const B = M.builders[a.pi]; if (!B || !M.players[a.pi].entry.remote) return; B.cx = +a.x || 0; B.cy = +a.y || 0; B.rot = a.r & 3; });
+Net.on('pcur', a => { const M = Match.M; if (M && M.phase === 'pick' && M.players[a.pi] && M.players[a.pi].entry.remote) M.pickCur[a.pi] = a.i | 0; });
 Net.on('pfail', a => { const M = Match.M; if (M) { M.msg = { s: a.why, t: 1.4 }; Audio2.sfx('bad'); } });
 Net.on('respawn', a => Match.applyRespawn(a));
 Net.on('crumble', a => { const M = Match.M; if (!M) return; const it = M.W.items.find(i => i.uid === a.uid); if (it && it.st && !(it.st.shake > 0) && !(it.st.fall > 0)) it.st.shake = .001; });

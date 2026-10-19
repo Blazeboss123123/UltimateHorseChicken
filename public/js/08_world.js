@@ -57,7 +57,7 @@ class WorldView {
   syncSolids() {
     this.frame = (this.frame || 0) + 1;
     const W = this.W;
-    for (const it of W.items) if (it._s) it._s.forEach((so, i) => this.zoneFor(it.uid + ':' + i, so, MOVING_SOLID_ITEMS.has(it.id)));
+    for (const it of W.items) if (it._s) it._s.forEach((so, i) => this.zoneFor(it.uid + ':' + i, so, MOVING_SOLID_ITEMS.has(it.id) || !!it.attach));
     let mi = 0; for (const so of W.solids) if (so.src === 'mill') this.zoneFor('mill' + (mi++), so, true);
     W.discoSolids.forEach((so, i) => { const z = this.zones.get('disco' + i); if (z) { z.seen = this.frame; z.body.enable = W.solids.includes(so); } });
     for (const [k, z] of this.zones) {
@@ -71,7 +71,7 @@ class WorldView {
   syncItems() {
     const live = new Set(this.W.items.map(i => i.uid));
     for (const [k, v] of this.items) if (!live.has(k)) { v.destroy(); this.items.delete(k); }
-    for (const it of this.W.items) if (!this.items.has(it.uid)) this.addItem(it); else { const v = this.items.get(it.uid); if (v.x !== it.x || v.y !== it.y || v.rot !== it.rot) { this.removeItem(it); this.addItem(it); } }
+    for (const it of this.W.items) if (!this.items.has(it.uid)) this.addItem(it); else { const v = this.items.get(it.uid); if (v.rot !== it.rot || v.it !== it) { this.removeItem(it); this.addItem(it); } else if (v.x !== it.x || v.y !== it.y) v.relocate(); }
   }
   // ---------- players ----------
   setPlayers(list) {
@@ -156,12 +156,21 @@ class WorldView {
         p.onGround = true; p.ground = so; break;
       }
     }
+    // Riding a moving platform: stay glued to its top (Arcade's colliders trail the model by a frame).
+    if (p.rideKey) {
+      const g = W.solids.find(so => so.key === p.rideKey);
+      if (g && b.velocity.y > -60 && p.x + p.w > g.x + 1 && p.x < g.x + g.w - 1 && p.y + p.h > g.y - 14 && p.y + p.h < g.y + 12) {
+        p.y = g.y - p.h; b.y = p.y; b.prev.y = p.y; b.updateCenter(); p.onGround = true; p.ground = g;
+      } else p.rideKey = null;
+    }
     let wallNow = b.blocked.left || b.touching.left ? -1 : b.blocked.right || b.touching.right ? 1 : 0;
     if ((wallNow < 0 && p.x <= 1) || (wallNow > 0 && p.x + p.w >= W.map.w * T - 1)) wallNow = 0; // the level's outer edge is not a wall
     p.vx = b.velocity.x - (p._conv || 0); p.vy = b.velocity.y;
     // crushed by something that moved into us
     const core = { x: p.x + 3, y: p.y + 3, w: p.w - 6, h: p.h - 6 };
-    for (const so of W.solids) if (!so.oneway && !so.wall && rectsOverlap(core, so)) { killPlayer(W, p, { owner: -1, src: 'getting squashed' }); return; }
+    // (moving solids get a deeper margin: their colliders catch up a frame after the model moves them)
+    const deep = { x: p.x + 7, y: p.y + 8, w: p.w - 14, h: p.h - 14 };
+    for (const so of W.solids) if (!so.oneway && !so.wall && so !== p.ground && rectsOverlap((so.vx || so.vy) ? deep : core, so)) { killPlayer(W, p, { owner: -1, src: 'getting squashed' }); return; }
     // --- inputs ---
     if (p.stun > 0) p.stun -= dt;
     const stunned = p.stun > 0;
@@ -224,12 +233,16 @@ class WorldView {
         if (g.surf === 'bounce' && p.vy >= 0) { p.vy = -980; p.squash = .3; if (g.ref) g.ref.st.boing = 1; Audio2.sfx('bounce'); }
         else if (g.surf === 'crumble' && g.ref && !(g.ref.st.shake > 0)) { g.ref.st.shake = .001; Net.cast({ t: 'crumble', uid: g.ref.uid }); }
         if (g.surf === 'conv') conv = g.conv;
+        // moving platforms (windmill sails, moving platforms, things riding on them) carry you along
+        if (g.vx) conv += g.vx;
       }
       if (p.onGround && !p.wasGround && p.lastVy > 300) { p.squash = Math.min(.32, p.lastVy / 2400); Audio2.sfx('land'); FX.burst(p.x + p.w / 2, p.y + p.h, 4, { color: '#ffffff', kind: 'puff', g: 0, smin: 20, smax: 70 }); }
     }
     p.wasGround = p.onGround; p.lastVy = p.vy;
     p._conv = conv;
-    b.setAllowGravity(!p.climbing); b.setGravityY(gravity);
+    const riding = !p.climbing && p.onGround && p.ground && p.ground.key && (p.ground.vx || p.ground.vy) && p.vy >= -1;
+    p.rideKey = riding ? p.ground.key : null; if (riding) p.vy = 0;
+    b.setAllowGravity(!p.climbing && !riding); b.setGravityY(riding ? 0 : gravity);
     b.setVelocity(p.vx + conv, p.vy);
     if (p.y > W.map.h * T + 80) { killPlayer(W, p, { owner: -1, src: 'falling', fell: true }); return; }
     // --- interactions with the level ---
@@ -282,7 +295,7 @@ class WorldView {
     for (const so of W.terrainSolids) if (so.surf === 'conv') { const g = this.gb; rr(g, so.x, so.y, so.w, so.h, so.h / 2); fillStroke(g, '#4b4f58', 2.5); const o = (t * Math.abs(so.conv) * .3) % 16 * Math.sign(so.conv); for (let x = so.x + 8 + ((o % 16) + 16) % 16; x < so.x + so.w - 8; x += 16) { g.beginPath(); g.moveTo(x, so.y + 3); g.lineTo(x + 5 * Math.sign(so.conv), so.y + so.h / 2); g.lineTo(x, so.y + so.h - 3); g.strokeStyle = '#ffd34d'; g.lineWidth = 2.5; g.stroke(); } }
     if (M && M.drawMid) M.drawMid(this.gb, W, t);
     if (opt.showZones) { const g = this.gb; g.fillStyle = 'rgba(63,174,90,.18)'; rr(g, W.start.x, W.start.y, W.start.w, W.start.h, 10); g.fill(); g.fillStyle = 'rgba(232,71,63,.18)'; rr(g, W.goalZone.x, W.goalZone.y, W.goalZone.w, W.goalZone.h, 10); g.fill(); }
-    for (const v of this.items.values()) v.update(t, dt);
+    for (const v of this.items.values()) { if (v.it && (v.it.x !== v.x || v.it.y !== v.y) && v.relocate) v.relocate(); v.update(t, dt); }
     this.updateProjectiles();
     if (M && M.drawFront && W.map.mech !== 'dark') M.drawFront(this.gf, W, t, null, null);
     if (Save.data.settings.contrast) for (const h of W.hazards) { const g = this.gf; g.save(); g.setLineDash([6, 4]); g.strokeStyle = '#ff2050'; g.lineWidth = 3; g.beginPath(); if (h.k === 'c') g.arc(h.x, h.y, h.r + 3, 0, TAU); else g.rect(h.x - 3, h.y - 3, h.w + 6, h.h + 6); g.stroke(); g.restore(); }

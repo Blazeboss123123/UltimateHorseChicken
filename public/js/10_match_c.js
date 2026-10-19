@@ -24,7 +24,7 @@ Object.assign(Match, {
     const M = this.M; const P = M.phase;
     let title = '', time = null, sub = '';
     if (P === 'pick' || P === 'dealt') { title = 'PICK'; time = P === 'pick' ? M.timer : null; }
-    else if (P === 'build') { title = 'BUILD'; time = M.undoT > 0 ? null : M.timer; }
+    else if (P === 'build') { title = 'BUILD'; time = M.timer; }
     else if (P === 'race') { title = 'RACE'; time = M.countdown > 0 ? null : M.raceT; const mh = MECH[M.map.mech] && MECH[M.map.mech].hud; if (mh) sub = mh(M.W) || ''; }
     else if (P === 'results') title = 'RESULTS'; else if (P === 'podium') title = 'WINNER!'; else title = 'GET READY';
     const w = 340 * u, h = 54 * u, x = SW / 2 - w / 2, y = 10 * u;
@@ -44,7 +44,7 @@ Object.assign(Match, {
       txt(ctx, (p.gone ? '👋 ' : '') + p.name.slice(0, 10) + (M.me === p && Net.online ? ' (you)' : ''), x + 44 * u, y + 15 * u, 12 * u, INK, 'left', null, 600);
       txt(ctx, String(M.scores[i].total), x + 44 * u, y + 33 * u, 18 * u, INK, 'left', null, 700);
       if (M.phase === 'race' && M.countdown <= 0) txt(ctx, p.finished ? '🚩' : !p.alive ? '💫' : '', x + cw - 18 * u, y + h / 2, 18 * u, '#fff', 'center', null);
-      if ((M.phase === 'build' && M.placing && M.placing.pi === i) || (M.phase === 'pick' && M.picker === i)) poly(ctx, [[x + cw / 2 - 8, y - 4], [x + cw / 2 + 8, y - 4], [x + cw / 2, y + 6]], '#ffd34d', 2);
+      if ((M.phase === 'build' && M.builders && M.builders[i] && M.builders[i].queue.length && !this.builderDone(M.builders[i])) || (M.phase === 'pick' && this.needsPick(i))) poly(ctx, [[x + cw / 2 - 8, y - 4], [x + cw / 2 + 8, y - 4], [x + cw / 2, y + 6]], '#ffd34d', 2);
     });
   },
   drawPick(ctx, SW, SH, u) {
@@ -53,11 +53,11 @@ Object.assign(Match, {
     const cs = Math.min(104 * u, (SW - 80) / cols, (SH - 260 * u) / rows), pw = cols * cs + 40 * u, ph = rows * cs + 120 * u;
     const px = SW / 2 - pw / 2, py = SH / 2 - ph / 2 - 10 * u;
     panel(ctx, px, py, pw, ph);
-    const pl = M.players[M.picker];
-    hudPortrait(ctx, px + 40 * u, py + 36 * u, 22 * u, pl.entry);
-    txt(ctx, (Net.online && pl === M.me ? 'Your turn' : pl.name) + (M.mode === 'creative' ? ' — choose anything!' : ' — pick an item!'), px + 72 * u, py + 36 * u, 24 * u, pl.color, 'left');
+    const mine = M.order.filter(pi => !M.players[pi].entry.remote && this.needsPick(pi));
+    const head = mine.length ? (Net.online || M.players.length === 1 ? 'Pick an item!' : 'Everyone — pick an item!') : M.order.some(pi => this.needsPick(pi)) ? 'Waiting for the others to pick…' : 'All picked!';
+    txt(ctx, (M.mode === 'creative' ? '🎨 ' : '🎁 ') + head, px + 24 * u, py + 36 * u, 24 * u, '#e8573f', 'left');
     rr(ctx, px + 20 * u, py + 64 * u, pw - 40 * u, 8 * u, 4); ctx.fillStyle = 'rgba(58,42,30,.15)'; ctx.fill();
-    rr(ctx, px + 20 * u, py + 64 * u, Math.max(1, (pw - 40 * u) * clamp(M.timer / M.rules.pickTime, 0, 1)), 8 * u, 4); ctx.fillStyle = M.timer < 3 ? '#ff5a4a' : pl.color; ctx.fill();
+    rr(ctx, px + 20 * u, py + 64 * u, Math.max(1, (pw - 40 * u) * clamp(M.timer / M.rules.pickTime, 0, 1)), 8 * u, 4); ctx.fillStyle = M.timer < 3 ? '#ff5a4a' : '#3fae5a'; ctx.fill();
     M.boxRects = [];
     M.box.forEach((b, i) => {
       const cx = px + 20 * u + (i % cols) * cs, cy = py + 84 * u + Math.floor(i / cols) * cs;
@@ -67,12 +67,17 @@ Object.assign(Match, {
       hudIcon(ctx, b.id, cx + (cs - 6) / 2, cy + (cs - 6) / 2 - 8 * u, cs * .62, taken ? .35 : 1);
       txt(ctx, ITEMS[b.id].name, cx + (cs - 6) / 2, cy + cs - 18 * u, Math.min(12 * u, cs / 8.5), INK, 'center', null, 600);
       if (taken) { const q = M.players[b.by]; hudPortrait(ctx, cx + cs - 22 * u, cy + 16 * u, 14 * u, q.entry); }
-      if (i === M.pickCursor) { const G = ctx.hud.g2; rr(G, cx - 4, cy - 4, cs + 2, cs + 2, 14); G.lineWidth = 5; G.strokeStyle = pl.color; G.stroke(); }
+      // every player still picking has their own coloured cursor
+      let k = 0;
+      for (const pi of M.order) {
+        if (!this.needsPick(pi) || M.pickCur[pi] !== i) continue;
+        const q = M.players[pi], G = ctx.hud.g2; rr(G, cx - 4 + k * 4, cy - 4 + k * 4, cs + 2 - k * 8, cs + 2 - k * 8, 14); G.lineWidth = 5; G.strokeStyle = q.color; G.stroke();
+        hudPortrait(ctx, cx + 10 * u + k * 22 * u, cy + 12 * u, 11 * u, q.entry); k++;
+      }
     });
-    const it = M.box[M.pickCursor]; if (it) txt(ctx, ITEMS[it.id].desc, SW / 2, py + ph - 18 * u, 15 * u, INK, 'center', null, 500);
-    const seq = this.pickSeq(); const ow = 34 * u; const ox = SW / 2 - seq.length * ow / 2;
-    seq.forEach((pi, k) => { const q = M.players[pi]; hudPortrait(ctx, ox + k * ow + ow / 2, py + ph + 30 * u, (k === M.turn ? 16 : 11) * u, q.entry, { dim: k < M.turn }); });
-    txt(ctx, 'Pick order', SW / 2, py + ph + 56 * u, 13 * u, '#fff');
+    const me = mine.length ? mine[0] : -1, it = me >= 0 ? M.box[M.pickCur[me]] : null; if (it) txt(ctx, ITEMS[it.id].desc, SW / 2, py + ph - 18 * u, 15 * u, INK, 'center', null, 500);
+    const ow = 40 * u, ox = SW / 2 - M.order.length * ow / 2;
+    M.order.forEach((pi, k) => { const q = M.players[pi], done = !this.needsPick(pi); hudPortrait(ctx, ox + k * ow + ow / 2, py + ph + 30 * u, 15 * u, q.entry, { dim: q.gone }); if (done) txt(ctx, '✔', ox + k * ow + ow / 2 + 12 * u, py + ph + 40 * u, 15 * u, '#7ae07a', 'center', INK); });
   },
   drawDealt(ctx, SW, SH, u) {
     const M = this.M, n = M.players.length; const cw = Math.min(130 * u, (SW - 60) / n), w = cw * n + 40 * u, h = 170 * u, x = SW / 2 - w / 2, y = SH / 2 - h / 2;
@@ -80,21 +85,28 @@ Object.assign(Match, {
     M.players.forEach((p, i) => { const cx = x + 20 * u + i * cw + cw / 2; hudPortrait(ctx, cx, y + 72 * u, 18 * u, p.entry); M.hands[i].forEach((id, k) => hudIcon(ctx, id, cx + (k - (M.hands[i].length - 1) / 2) * 44 * u, y + 125 * u, 40 * u)); });
   },
   drawBuildHUD(ctx, SW, SH, u) {
-    const M = this.M, c = M.placing; if (!c) return;
-    const pl = M.players[c.pi];
+    const M = this.M; if (!M.builders) return;
+    const mine = M.builders.filter(B => B.queue.length && !M.players[B.pi].entry.remote);
     const w = Math.min(560 * u, SW - 20), h = 58 * u, x = SW / 2 - w / 2, y = 74 * u;
     panel(ctx, x, y, w, h);
-    hudIcon(ctx, c.id, x + 34 * u, y + h / 2, 40 * u);
-    txt(ctx, M.undoT > 0 ? pl.name + ' placed it!' : pl.name + ' is placing: ' + ITEMS[c.id].name, x + 64 * u, y + 20 * u, 19 * u, pl.color, 'left');
-    const src = pl.entry.input === 'any' ? 'kb1' : pl.entry.input, kb = src.startsWith('kb'), B = kb ? Input.binds(src) : null;
-    const k = a => kb ? keyLabel((B[a] || [])[0]) : PAD_LABELS[a].split(' ')[0];
-    const hint = pl.entry.remote ? (M.undoT > 0 ? 'They can still undo it for a moment…' : 'Watch where they put it!') : M.undoT > 0 ? (k('undo') + ' undo · ' + k('jump') + ' continue') : (src === 'kb1' ? 'Mouse/WASD move · Click/E place · R/wheel rotate · Shift fine' : (kb ? 'Move · ' + k('interact') + ' place · ' + k('rotate') + ' rotate' : 'Stick move · A/X place · Y rotate · LT fine'));
-    txt(ctx, hint, x + 64 * u, y + 42 * u, 13 * u, INK, 'left', null, 500);
-    if (M.undoT > 0) { rr(ctx, x + 10, y + h - 7, Math.max(1, (w - 20) * (M.undoT / 1.6)), 4, 2); ctx.fillStyle = pl.color; ctx.fill(); }
-    if (c.valid && !c.valid.ok && !c.done) txt(ctx, c.valid.why, SW / 2, y + h + 20 * u, 17 * u, '#ff7a6a');
-    const rest = M.buildSeq.slice(M.turn + 1, M.turn + 8);
-    rest.forEach((s, i) => { const q = M.players[s.pi]; const yy = 150 * u + i * 44 * u; rr(ctx, 10, yy, 104 * u, 38 * u, 10); ctx.fillStyle = 'rgba(255,246,230,.85)'; ctx.fill(); hudPortrait(ctx, 10 + 20 * u, yy + 19 * u, 14 * u, q.entry); hudIcon(ctx, s.id, 10 + 70 * u, yy + 19 * u, 30 * u); });
-    if (rest.length) txt(ctx, 'Up next', 10 + 52 * u, 136 * u, 14 * u, '#fff');
+    const B = mine.find(b => !this.builderDone(b)) || mine[0];
+    if (B && !this.builderDone(B)) {
+      const pl = M.players[B.pi], id = B.queue[B.n];
+      hudIcon(ctx, id, x + 34 * u, y + h / 2, 40 * u);
+      txt(ctx, (mine.length > 1 ? pl.name + ': ' : 'Place your ') + ITEMS[id].name + (B.queue.length > 1 ? '  (' + (B.n + 1) + '/' + B.queue.length + ')' : ''), x + 64 * u, y + 20 * u, 19 * u, pl.color, 'left');
+      const src = pl.entry.input === 'any' ? 'kb1' : pl.entry.input, kb = src.startsWith('kb'), Bd = kb ? Input.binds(src) : null;
+      const k = a => kb ? keyLabel((Bd[a] || [])[0]) : PAD_LABELS[a].split(' ')[0];
+      const hint = src === 'kb1' ? 'Mouse/WASD move · Click/E place · R/wheel rotate · Shift fine' : (kb ? 'Move · ' + k('interact') + ' place · ' + k('rotate') + ' rotate' : 'Stick move · A/X place · Y rotate · LT fine');
+      txt(ctx, hint + (B.valid && B.valid.attach ? '  ·  🔗 rides along!' : ''), x + 64 * u, y + 42 * u, 13 * u, INK, 'left', null, 500);
+      if (B.valid && !B.valid.ok) txt(ctx, B.valid.why, SW / 2, y + h + 20 * u, 17 * u, '#ff7a6a');
+    } else {
+      const last = mine.find(b => b.last);
+      txt(ctx, mine.length ? (last && M.rules.allowUndo ? 'Placed! (' + (keyLabel((Input.binds('kb1').undo || [])[0])) + ' / B to undo) — waiting for the others…' : 'Placed! Waiting for the others…') : 'Watch everyone build!', SW / 2, y + h / 2, 18 * u, INK, 'center', null, 600);
+    }
+    // who's still building
+    const rest = M.builders.filter(b => b.queue.length);
+    rest.forEach((b, i) => { const q = M.players[b.pi], done = this.builderDone(b); const yy = 150 * u + i * 44 * u; rr(ctx, 10, yy, 104 * u, 38 * u, 10); ctx.fillStyle = 'rgba(255,246,230,.85)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = q.color; ctx.stroke(); hudPortrait(ctx, 10 + 20 * u, yy + 19 * u, 14 * u, q.entry, { dim: q.gone }); if (done) txt(ctx, '✔', 10 + 70 * u, yy + 19 * u, 22 * u, '#3fae5a', 'center', INK); else hudIcon(ctx, b.queue[b.n], 10 + 70 * u, yy + 19 * u, 30 * u); });
+    if (rest.length) txt(ctx, 'Builders', 10 + 52 * u, 136 * u, 14 * u, '#fff');
   },
   drawResults(ctx, SW, SH, u) {
     const M = this.M, n = M.players.length, R = M.rules, A = M.roundAward;

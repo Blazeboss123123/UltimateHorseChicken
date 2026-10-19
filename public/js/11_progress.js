@@ -32,12 +32,12 @@ const Progress = {
   },
 };
 
-function encodeLevel(L) { const j = JSON.stringify({ v: 1, n: L.name, m: L.map, i: L.items.map(i => [ITEM_ORDER.indexOf(i[0]), Math.round(i[1]), Math.round(i[2]), i[3]]) }); return 'UHC1-' + btoa(unescape(encodeURIComponent(j))); }
+function encodeLevel(L) { const j = JSON.stringify({ v: 1, n: L.name, m: L.map, i: L.items.map(i => { const r = [ITEM_ORDER.indexOf(i[0]), Math.round(i[1]), Math.round(i[2]), i[3]]; if (i[4] && typeof i[4] === 'object') r.push(i[4]); return r; }) }); return 'UHC1-' + btoa(unescape(encodeURIComponent(j))); }
 function decodeLevel(code) {
   try {
     const s = code.trim().replace(/^UHC1-/, ''); const o = JSON.parse(decodeURIComponent(escape(atob(s))));
     if (!MAP_BY_ID[o.m]) return null;
-    const items = (o.i || []).filter(a => ITEM_ORDER[a[0]]).slice(0, 400).map(a => [ITEM_ORDER[a[0]], +a[1] || 0, +a[2] || 0, (+a[3] || 0) & 3]);
+    const items = (o.i || []).filter(a => ITEM_ORDER[a[0]]).slice(0, 400).map(a => { const r = [ITEM_ORDER[a[0]], +a[1] || 0, +a[2] || 0, (+a[3] || 0) & 3]; if (a[4] && typeof a[4] === 'object') r.push(a[4]); return r; });
     return { name: String(o.n || 'Shared level').slice(0, 40), map: o.m, items };
   } catch (e) { return null; }
 }
