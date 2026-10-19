@@ -210,6 +210,7 @@ function drawChar(ctx, id, o) {
   if (o.alpha != null) ctx.globalAlpha *= o.alpha;
   ctx.scale(sc * (o.facing || 1) * (1 + sq * .45), sc * (1 - sq));
   let bob = 0, lean = 0, legA = 0, knee = 0, armA = 0, armUp = 0, spin = 0, elbow = .5;
+  let sink = 0, back = null; // sink: hips + upper body lowered (crouching); back: [angle, knee] for the far leg when it shouldn't mirror the near one
   if (st === 'idle') { bob = Math.sin(t * 3) * .7; armA = Math.sin(t * 3) * .08; }
   else if (st === 'run') { const ph = o.phase || 0; legA = Math.sin(ph) * .85; knee = Math.max(0, -Math.cos(ph)) * 1.1; bob = -Math.abs(Math.sin(ph)) * 1.8; lean = .14; armA = -Math.sin(ph) * .9; elbow = .9; }
   else if (st === 'jump') { legA = .5; knee = .9; armUp = .8; }
@@ -218,14 +219,20 @@ function drawChar(ctx, id, o) {
   else if (st === 'climb') { armUp = 1; armA = Math.sin(t * 10) * .6; legA = Math.sin(t * 10) * .5; knee = .6; }
   else if (st === 'dance') { bob = -Math.abs(Math.sin(t * 7)) * 6; armUp = 1; armA = Math.sin(t * 14) * .7; spin = o.noSpin ? 0 : Math.sin(t * 3.5) * .25; legA = Math.sin(t * 14) * .4; knee = .3; }
   else if (st === 'stun') { lean = Math.sin(t * 9) * .2; armA = .5; }
-  else if (st === 'crouch') { legA = .95; knee = 1.75; armA = .35; bob = Math.sin(t * 3) * .4; lean = .08; }
-  else if (st === 'crawl') { const ph = o.phase || 0; legA = .9 + Math.sin(ph) * .4; knee = 1.6; armA = -Math.sin(ph) * .55; lean = .22; elbow = .9; }
-  else if (st === 'slide') { legA = -1.15; knee = .15; lean = -.32; armUp = .6; armA = .5; }
-  if (st === 'crouch' || st === 'crawl') ctx.scale(1.08, .64); else if (st === 'slide') ctx.scale(1.06, .6); // squat down towards the feet
-  ctx.rotate(lean + spin);
+  // Crouch: a real squat — thighs come forward, knees fold, hips and body drop, and the body leans in over the knees.
+  else if (st === 'crouch') { sink = 8.5 + Math.sin(t * 3) * .3; legA = 1.45; knee = 2.85; back = [1.15, 2.5]; lean = .3; armA = -.75; elbow = 1.1; }
+  // Crawl: the same squat, shuffling forward one leg at a time
+  else if (st === 'crawl') { const ph = o.phase || 0; sink = 8.5 + Math.abs(Math.sin(ph)) * .7; legA = 1.4 + Math.sin(ph) * .28; knee = 2.75 - Math.sin(ph) * .2; back = [1.15 - Math.sin(ph) * .28, 2.5 + Math.sin(ph) * .2]; lean = .4; armA = -.8 - Math.sin(ph) * .35; elbow = 1; }
+  // Slide: leaning back with both legs out in front, one arm thrown back for balance
+  else if (st === 'slide') { sink = 9.5; legA = 1.52; knee = .2; back = [1.38, .55]; lean = -.3; armUp = .6; armA = .9; }
+  // crouching poses lean only the upper body (pivoting at the hips) so the feet stay planted on the ground
+  if (sink) { ctx.beginPath(); ctx.rect(-80, -90, 160, 92.6); ctx.clip(); } // nothing pokes below the ground (tails when sliding)
+  const bodyLean = sink ? lean : 0; ctx.rotate((sink ? 0 : lean) + spin);
+  const upT = () => { ctx.translate(0, sink); if (bodyLean) { ctx.translate(0, -11); ctx.rotate(bodyLean); ctx.translate(0, 11); } };
   const legOf = (side, a, k) => {
-    const hx = side * 2.6, hy = -11 + bob * .4, L1 = 5.8, L2 = 5.6;
-    const kx = hx + Math.sin(a) * L1, ky = hy + Math.cos(a) * L1, fx = kx + Math.sin(a - k) * L2, fy = Math.min(-.6, ky + Math.cos(a - k) * L2);
+    const hx = side * 2.6, hy = -11 + bob * .4 + sink, L1 = 5.8, L2 = 5.6;
+    const kx = hx + Math.sin(a) * L1, ky = Math.min(hy + Math.cos(a) * L1, -1.6), // knees never dip through the floor
+      fx = kx + Math.sin(a - k) * L2, fy = Math.min(-.6, ky + Math.cos(a - k) * L2);
     limb(ctx, [[hx, hy], [kx, ky], [fx, fy]], C.leg, C.legOl, 3.3);
     if (C.foot === 'hoof') { rr(ctx, fx - 1.8, fy - 1.4, 4.4, 2.6, 1); furPath(ctx, C.footCol, shade(C.footCol, -.4), null, .9); }
     else if (C.foot === 'bird') { line(ctx, fx, fy, fx + 3.6, fy + .3, C.footCol, 1.4); line(ctx, fx, fy, fx - 1.6, fy + .6, C.footCol, 1.2); line(ctx, fx, fy, fx + 2.6, fy - 1.4, C.footCol, 1.2); }
@@ -239,8 +246,10 @@ function drawChar(ctx, id, o) {
     limb(ctx, [[sx, sy], [ex, ey], [hx, hy]], shade(C.fur, -.1), C.ol, 2.7);
     oval(ctx, hx, hy, 1.6, 1.6, C.foot === 'hoof' ? C.footCol : shade(C.fur, -.08), C.ol, 0, .8);
   };
-  if (C.tail) C.tail(ctx, t, C, st);
-  legOf(-1, -legA, knee * (legA > 0 ? 1 : .2)); armOf(-1, -armA);
+  const up = f => { if (!sink) return f(); ctx.save(); upT(); f(); ctx.restore(); };
+  if (C.tail) up(() => C.tail(ctx, t, C, st));
+  if (back) legOf(-1, back[0], back[1]); else legOf(-1, -legA, knee * (legA > 0 ? 1 : .2)); up(() => armOf(-1, back ? armA * .8 : -armA));
+  ctx.save(); upT();
   if (C.bodyFn) C.bodyFn(ctx, bob, C);
   else {
     ctx.beginPath(); ctx.moveTo(0, -27.5 + bob); ctx.bezierCurveTo(6.6, -27.5 + bob, 8.4, -17 + bob, 7.6, -13.4 + bob); ctx.bezierCurveTo(6.8, -10 + bob, -6.8, -10 + bob, -7.6, -13.4 + bob); ctx.bezierCurveTo(-8.4, -17 + bob, -6.6, -27.5 + bob, 0, -27.5 + bob); ctx.closePath();
@@ -250,8 +259,9 @@ function drawChar(ctx, id, o) {
   }
   // scarf in the player's colour so everyone can tell who's who
   if (o.color) { ctx.beginPath(); ctx.ellipse(1.6, -25.4 + bob, 6.4, 2.1, .08, 0, TAU); furPath(ctx, o.color, shade(o.color, -.45), null, 1); shape(ctx, [[-3.6, -25.4 + bob], [-8.4 - (st === 'run' ? 2.6 : 0), -20.6 + bob + Math.sin(t * 9) * 1.2], [-5, -20.8 + bob]], o.color, shade(o.color, -.45), 1, false); }
-  legOf(1, legA, knee * (legA < 0 ? 1 : .2)); armOf(1, armA);
-  ctx.save(); ctx.translate(2.4, -31.5 + bob);
+  ctx.restore();
+  legOf(1, legA, back ? knee : knee * (legA < 0 ? 1 : .2)); up(() => armOf(1, armA));
+  ctx.save(); upT(); ctx.translate(2.4, -31.5 + bob);
   if (st === 'run') ctx.rotate(.04);
   C.head(ctx, o, C);
   if (o.hat && o.hat !== 'none') { ctx.save(); ctx.translate(1, C.hatY || -10); drawHat(ctx, o.hat, t); ctx.restore(); }
