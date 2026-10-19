@@ -344,6 +344,15 @@ class WorldView {
     if (M && M.drawBack) M.drawBack(this.gb, W, t);
     for (const so of W.terrainSolids) if (so.surf === 'conv') { const g = this.gb; rr(g, so.x, so.y, so.w, so.h, so.h / 2); fillStroke(g, '#4b4f58', 2.5); const o = (t * Math.abs(so.conv) * .3) % 16 * Math.sign(so.conv); for (let x = so.x + 8 + ((o % 16) + 16) % 16; x < so.x + so.w - 8; x += 16) { g.beginPath(); g.moveTo(x, so.y + 3); g.lineTo(x + 5 * Math.sign(so.conv), so.y + so.h / 2); g.lineTo(x, so.y + so.h - 3); g.strokeStyle = '#ffd34d'; g.lineWidth = 2.5; g.stroke(); } }
     if (M && M.drawMid) M.drawMid(this.gb, W, t);
+    if (W.racing || W.testing || W.armed) for (const sh of W.shields || []) { // safe zones: a soft green dome
+      const left = W.shieldEnd != null ? W.shieldEnd - W.t : 99, fade = clamp(left / .6, 0, 1); // fades out as time runs out
+      const g = this.gb, a = (.17 + Math.sin(t * 2.2) * .04) * fade; g.save(); g.fillStyle = 'rgba(120,230,150,' + a.toFixed(3) + ')'; rr(g, sh.x, sh.y, sh.w, sh.h, 14); g.fill();
+      g.setLineDash([8, 6]); g.lineDashOffset = -t * 12; g.strokeStyle = 'rgba(90,200,120,' + (.55 * fade).toFixed(3) + ')'; g.lineWidth = 2; g.stroke(); g.restore();
+    }
+    { const racing = !!(W.racing || W.testing || W.armed) && W.startShield && (W.shields || []).length > 0; // label on the start's safe zone, with time left
+      if (racing && !this.safeTxt) this.safeTxt = this.s.add.text(0, 0, '🛡 SAFE ZONE', { fontFamily: 'Fredoka, sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#2f8a52' }).setOrigin(.5, 0).setDepth(5).setAlpha(.8);
+      if (this.safeTxt && racing) { const left = W.shieldEnd != null ? W.shieldEnd - W.t : null; const s = left == null || left > SAFE_TIME + .05 ? '🛡 SAFE ZONE' : '🛡 SAFE · ' + Math.max(0, left).toFixed(1) + 's'; if (this.safeTxt.text !== s) this.safeTxt.setText(s); }
+      if (this.safeTxt) this.safeTxt.setVisible(racing).setPosition(racing ? W.startShield.x + W.startShield.w / 2 : 0, racing ? W.startShield.y + 6 : 0); }
     if (opt.showZones) { const g = this.gb; g.fillStyle = 'rgba(63,174,90,.18)'; rr(g, W.start.x, W.start.y, W.start.w, W.start.h, 10); g.fill(); g.fillStyle = 'rgba(232,71,63,.18)'; rr(g, W.goalZone.x, W.goalZone.y, W.goalZone.w, W.goalZone.h, 10); g.fill(); }
     for (const v of this.items.values()) { if (v.it && (v.it.x !== v.x || v.it.y !== v.y) && v.relocate) v.relocate(); v.update(t, dt); }
     this.updateProjectiles();

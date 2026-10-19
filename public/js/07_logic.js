@@ -23,6 +23,7 @@ function createWorld(map, rules) {
   W.start = { x: map.start[0] * T, y: map.start[1] * T, w: map.start[2] * T, h: map.start[3] * T };
   W.goal = { x: map.goal[0] * T - 14, y: map.goal[1] * T - 78, w: 46, h: 78 };
   W.goalZone = { x: W.goal.x - T, y: W.goal.y - T, w: W.goal.w + 2 * T, h: W.goal.h + T };
+  W.startShield = { x: W.start.x - 6, y: W.start.y - 2 * T, w: W.start.w + 12, h: W.start.h + 2 * T }; W.shields = [W.startShield];
   const M = MECH[map.mech]; if (M && M.init) M.init(W);
   return W;
 }
@@ -30,6 +31,7 @@ function createWorld(map, rules) {
 function stepWorld(W, dt) {
   W.t += dt; W.dt = dt;
   W.forces = []; W.pushers = []; W.hazards = [];
+  W.shields = shieldsOf(W);
   updateAttached(W);
   tickItems(W);
   const S = W.terrainSolids.slice();
@@ -94,8 +96,20 @@ function spawnPlayers(W, list) {
 const approach = (v, t, a) => v < t ? Math.min(v + a, t) : Math.max(v - a, t);
 
 // quiet = show the death but don't report it (used for other online players, whose own game reports it)
+// Safe zones: the start area (and each random-spawn spot), for the countdown and the first 3 s after GO. Traps can't hurt you in them, laser beams stop at
+// their edge and arrows / cannonballs / fireballs pop on them — so nobody gets wiped out the moment a round starts.
+const SAFE_TIME = 3; // seconds the safe zones last after GO
+function shieldsOf(W) {
+  if (!W.startShield) return [];
+  if (W.shieldEnd != null && W.t > W.shieldEnd) return []; // time's up
+  const out = [W.startShield];
+  if (W.spawnSpots) for (const s of W.spawnSpots) if (s) out.push({ x: s.x - T, y: s.y - 1.2 * T, w: PW + 2 * T, h: PH + 1.2 * T + 4, spot: true });
+  return out;
+}
+function inShield(W, x, y) { return (W.shields || []).some(s => x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h); }
 function killPlayer(W, p, cause, quiet) {
   if (!p.alive || p.finished) return;
+  if (!cause.fell && cause.src !== 'getting squashed' && inShield(W, p.x + p.w / 2, p.y + p.h / 2)) return; // safe zone
   p.alive = false; p.deathT = 0; p.killedBy = cause.owner; p.deathSrc = cause.src;
   if (p.coin) { p.coin.st.taken = false; p.coin = null; }
   const C = CHARS[p.char] || CHARS.horse;

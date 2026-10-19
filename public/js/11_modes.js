@@ -96,7 +96,7 @@ class EditorScene extends Phaser.Scene {
   changed() { if (Ed.E) Ed.E.verified = false; }
   toggleTest() {
     const E = Ed.E, W = E.W;
-    if (E.mode === 'edit') { E.mode = 'test'; W.testing = true; W.t = 0; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => { p.alive = true; p.finished = false; }); spawnPlayers(W, W.players); E.cursors.forEach(c => c.prev.hide()); Audio2.play('race'); toast('Testing! Reach the flag to verify the level.'); }
+    if (E.mode === 'edit') { E.mode = 'test'; W.testing = true; W.t = 0; W.shieldEnd = SAFE_TIME; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => { p.alive = true; p.finished = false; }); spawnPlayers(W, W.players); E.cursors.forEach(c => c.prev.hide()); Audio2.play('race'); toast('Testing! Reach the flag to verify the level.'); }
     else { E.mode = 'edit'; W.testing = false; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => Match.hide(p)); Audio2.play('editor'); }
     UI.editorBars(true);
   }
