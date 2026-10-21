@@ -95,7 +95,8 @@ function makeItemView(view, it, opts = {}) {
       break;
     }
     case 'coin': {
-      const sp = add(s.add.image(cx, cy, 'part_acorn').setScale(.5));
+      if (it.mapIdol && !TEX.has('part_idol')) TEX.bake('part_idol', 40, 44, g => drawIdol(g, 20, 24, 1), 3);
+      const sp = add(s.add.image(cx, cy, it.mapIdol ? 'part_idol' : 'part_acorn').setScale(.5));
       V.update = t => { const taken = it.st && it.st.taken; sp.setVisible(!taken); sp.setPosition(cx, cy + Math.sin(t * 3) * 2).setScale(.5 * (Math.cos(t * 2.5) * .25 + .85), .5); };
       break;
     }

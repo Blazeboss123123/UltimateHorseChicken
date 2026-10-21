@@ -10,6 +10,7 @@
 06_maps_paint.js
 06_maps_bg.js
 06_maps_b.js
+06_maps_c.js
 07_logic.js
 07_textures.js
 08_engine.js

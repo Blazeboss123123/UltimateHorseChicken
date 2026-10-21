@@ -10,12 +10,14 @@ function renderTerrainLayer(m, scale = 1) {
   const deco = layer => (m.deco || []).forEach(([k, x, y, s, l]) => { if ((l || 'f') !== layer || !DECOS[k]) return; ctx.save(); ctx.translate(x * T, y * T); try { DECOS[k](ctx, (s || 1) * DECO_SCALE); } catch (e) { console.warn('deco', k, e); } ctx.restore(); });
   const rects = m.terrain.map((r, i) => { const p = r[4] || {}; const st = terrainStyle(m, r); let h = r[3] * T; if (r[1] + r[3] >= m.h - .5 && !NO_EXTEND.has(st)) h += 140; return { x: r[0] * T, y: r[1] * T, w: r[2] * T, h, p, st, seed: i + 1 + m.id.length * 13, r }; }).filter(o => !o.p.disco && o.p.surf !== 'conv');
   deco('b');
+  { const M = MECH[m.mech]; if (M && M.paintBack) { ctx.save(); try { M.paintBack(ctx, m); } catch (e) { console.warn('paintBack', e); } ctx.restore(); } }
   // soft contact shadow behind solid blocks (shadow only: the shape itself is drawn far off-canvas)
   ctx.save(); ctx.shadowColor = 'rgba(20,10,30,.32)'; ctx.shadowBlur = 16 * scale; ctx.shadowOffsetX = 10000 * scale; ctx.shadowOffsetY = 7 * scale; ctx.fillStyle = '#000';
   for (const o of rects) if (!NO_SHADOW.has(o.st)) ctx.fillRect(o.x - 10000 + 3, o.y + 2, o.w - 6, o.h);
   ctx.restore();
   for (const o of rects) { const f = TERRAIN_STYLES[o.st] || TERRAIN_STYLES.grass; ctx.save(); try { f(ctx, o.x, o.y, o.w, o.h, m.pal, o.seed); } catch (e) { console.warn('terrain', o.st, e); } ctx.restore(); }
   for (const o of rects) autoDecor(ctx, m, o.r, o.seed);
+  paintMapExtras(ctx, m);
   deco('f');
   paintify(c, 0, 0, c.width, c.height, { grain: .3, light: .05, dark: .06 });
   return { canvas: c, pad, scale };
@@ -35,6 +37,7 @@ function mapThumb(m, w, h, items) {
   if (m.mech === 'lava') { ctx.fillStyle = '#ff6a2a'; ctx.fillRect(0, 27.3 * T, m.w * T, 4 * T); }
   if (m.mech === 'tide') { ctx.fillStyle = 'rgba(40,140,200,.8)'; ctx.fillRect(0, 27 * T, m.w * T, 4 * T); }
   if (m.mech === 'waterfall') { ctx.fillStyle = 'rgba(200,240,255,.75)'; ctx.fillRect(24 * T, 0, 4 * T, m.h * T); }
+  { const W0 = { t: 0, map: m, ms: {} }; (m.movers || []).forEach(mv => { const p = moverAt(mv, 0); (MOVER_STYLES[mv.style] || MOVER_STYLES.crate)(ctx, p.x, p.y, mv.w * T, mv.h * T, 0, mv); }); const M = MECH[m.mech]; if (M && M.thumb) M.thumb(ctx, m); }
   if (items) for (const it of items) drawItem(ctx, it, 1);
   drawFlag(ctx, m.goal[0] * T, m.goal[1] * T, 0, m.pal.accent === '#e8473f' ? '#ffd34d' : '#e8473f');
   ctx.restore();

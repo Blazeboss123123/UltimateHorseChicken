@@ -102,7 +102,7 @@ Object.assign(Match, {
     if (M.countdown > 0) {
       M.countdown -= dt; const c = Math.ceil(M.countdown);
       if (c !== M.lastBeep && c > 0) { M.lastBeep = c; Audio2.sfx('beep'); }
-      if (M.countdown <= 0) { W.shieldEnd = W.t + SAFE_TIME; W.racing = true; Audio2.sfx('go'); M.players.forEach(p => M.view.release(p)); }
+      if (M.countdown <= 0) { W.shieldEnd = W.t + SAFE_TIME; W.goT = W.t; W.racing = true; Audio2.sfx('go'); M.players.forEach(p => M.view.release(p)); }
       if (M.countdown > 1.1) fitWholeMap(M.rig, W); else cameraOnPlayers(M.rig, W, watch());
       return;
     }

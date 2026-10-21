@@ -29,6 +29,7 @@ class WorldView {
     this.flagPole = s.add.image(gx, gy, 'flag_pole').setOrigin(.5, 1).setScale(.5).setDepth(9);
     this.flag = s.add.image(gx - 2, gy - 72, 'flag_' + fc + '0').setOrigin(0, 0).setScale(.5).setDepth(9); this.flagCol = fc;
     for (const it of W.items) this.addItem(it);
+    { const M = MECH[m.mech]; if (M && M.setupView) M.setupView(this); }
     this.resize();
   }
   resize() {
@@ -58,7 +59,7 @@ class WorldView {
     this.frame = (this.frame || 0) + 1;
     const W = this.W;
     for (const it of W.items) if (it._s) it._s.forEach((so, i) => this.zoneFor(it.uid + ':' + i, so, MOVING_SOLID_ITEMS.has(it.id) || !!it.attach));
-    let mi = 0; for (const so of W.solids) { if (so.src === 'mill') this.zoneFor('mill' + (mi++), so, true); else if (so.pl) this.zoneFor(so.key, so, true); }
+    let mi = 0; for (const so of W.solids) { if (so.src === 'mill') this.zoneFor('mill' + (mi++), so, true); else if (so.pl || so.src === 'mapmover' || so.src === 'train') this.zoneFor(so.key, so, true); }
     W.discoSolids.forEach((so, i) => { const z = this.zones.get('disco' + i); if (z) { z.seen = this.frame; z.body.enable = W.solids.includes(so); } });
     for (const [k, z] of this.zones) {
       if (k.startsWith('T:')) continue;
@@ -343,6 +344,8 @@ class WorldView {
     const M = MECH[W.map.mech];
     if (M && M.drawBack) M.drawBack(this.gb, W, t);
     for (const so of W.terrainSolids) if (so.surf === 'conv') { const g = this.gb; rr(g, so.x, so.y, so.w, so.h, so.h / 2); fillStroke(g, '#4b4f58', 2.5); const o = (t * Math.abs(so.conv) * .3) % 16 * Math.sign(so.conv); for (let x = so.x + 8 + ((o % 16) + 16) % 16; x < so.x + so.w - 8; x += 16) { g.beginPath(); g.moveTo(x, so.y + 3); g.lineTo(x + 5 * Math.sign(so.conv), so.y + so.h / 2); g.lineTo(x, so.y + so.h - 3); g.strokeStyle = '#ffd34d'; g.lineWidth = 2.5; g.stroke(); } }
+    drawMapExtras(this.gb, W, t);
+    if (M && M.updateView) M.updateView(this, t);
     if (M && M.drawMid) M.drawMid(this.gb, W, t);
     if (W.racing || W.testing || W.armed) for (const sh of W.shields || []) { // safe zones: a soft green dome
       const left = W.shieldEnd != null ? W.shieldEnd - W.t : 99, fade = clamp(left / .6, 0, 1); // fades out as time runs out

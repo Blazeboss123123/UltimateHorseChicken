@@ -96,8 +96,8 @@ class EditorScene extends Phaser.Scene {
   changed() { if (Ed.E) Ed.E.verified = false; }
   toggleTest() {
     const E = Ed.E, W = E.W;
-    if (E.mode === 'edit') { E.mode = 'test'; W.testing = true; W.t = 0; W.shieldEnd = SAFE_TIME; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => { p.alive = true; p.finished = false; }); spawnPlayers(W, W.players); E.cursors.forEach(c => c.prev.hide()); Audio2.play('race'); toast('Testing! Reach the flag to verify the level.'); }
-    else { E.mode = 'edit'; W.testing = false; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => Match.hide(p)); Audio2.play('editor'); }
+    if (E.mode === 'edit') { E.mode = 'test'; W.testing = true; W.t = 0; W.shieldEnd = SAFE_TIME; W.goT = 0; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => { p.alive = true; p.finished = false; }); spawnPlayers(W, W.players); E.cursors.forEach(c => c.prev.hide()); Audio2.play('race'); toast('Testing! Reach the flag to verify the level.'); }
+    else { E.mode = 'edit'; W.testing = false; W.goT = null; W.projs = []; for (const it of W.items) it.st = {}; W.players.forEach(p => Match.hide(p)); Audio2.play('editor'); }
     UI.editorBars(true);
   }
   itemUnder(x, y) { const W = Ed.E.W; for (let i = W.items.length - 1; i >= 0; i--) { const it = W.items[i]; if (it.mapOwned) continue; const b = itemBox(it); if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return it; } return null; }

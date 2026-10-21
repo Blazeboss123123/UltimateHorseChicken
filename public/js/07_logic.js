@@ -23,6 +23,7 @@ function createWorld(map, rules) {
   W.start = { x: map.start[0] * T, y: map.start[1] * T, w: map.start[2] * T, h: map.start[3] * T };
   W.goal = { x: map.goal[0] * T - 14, y: map.goal[1] * T - 78, w: 46, h: 78 };
   W.goalZone = { x: W.goal.x - T, y: W.goal.y - T, w: W.goal.w + 2 * T, h: W.goal.h + T };
+  mapExtrasInit(W);
   W.startShield = { x: W.start.x - 6, y: W.start.y - 2 * T, w: W.start.w + 12, h: W.start.h + 2 * T }; W.shields = [W.startShield];
   const M = MECH[map.mech]; if (M && M.init) M.init(W);
   return W;
@@ -35,6 +36,7 @@ function stepWorld(W, dt) {
   updateAttached(W);
   tickItems(W);
   const S = W.terrainSolids.slice();
+  mapExtrasTick(W, S); // ladders/spikes/vents/pre-placed moving blocks
   for (const it of W.items) {
     const d = ITEMS[it.id];
     if (d.solids) { if (!it._s || it._sx !== it.x || it._sy !== it.y || it._sr !== it.rot) { it._s = staticRects(it, d.solids); it._sx = it.x; it._sy = it.y; it._sr = it.rot; } }
@@ -60,7 +62,7 @@ function randomSpawnSpots(W, seed, n) {
   const rnd = seededRand(seed * 2654435761 + W.map.w * 97 + W.map.h), MW = W.map.w * T;
   const gx = W.goal.x + W.goal.w / 2, gy = W.goal.y + W.goal.h / 2, sx = W.start.x + W.start.w / 2, sy = W.start.y + W.start.h / 2;
   const minGoal = Math.max(8 * T, Math.hypot(gx - sx, gy - sy) * .45); // never start right next to the flag
-  const tops = W.solids.filter(s => !s.wall && !s.disco && !s.pl && !(s.vx || s.vy) && !(s.ref && (MOVING_SOLID_ITEMS.has(s.ref.id) || s.ref.id === 'flipper' || s.ref.id === 'falling')) && s.surf !== 'bounce' && s.surf !== 'conv' && s.src !== 'mill' && s.w >= PW + 4);
+  const tops = W.solids.filter(s => !s.wall && !s.disco && !s.pl && s.src !== 'mapmover' && s.src !== 'train' && !(s.vx || s.vy) && !(s.ref && (MOVING_SOLID_ITEMS.has(s.ref.id) || s.ref.id === 'flipper' || s.ref.id === 'falling')) && s.surf !== 'bounce' && s.surf !== 'conv' && s.src !== 'mill' && s.w >= PW + 4);
   const safe = r => {
     if (r.x < 4 || r.x + r.w > MW - 4 || r.y < -4 * T) return false;
     if (W.solids.some(s => !s.oneway && !s.pl && rectsOverlap(r, s))) return false;
@@ -139,6 +141,7 @@ function placementCheck(W, it, opts = {}) {
   const pad = { x: W.start.x - 6, y: W.start.y - 2 * T, w: W.start.w + 12, h: W.start.h + 2 * T };
   if (rectsOverlap(box, pad)) return { ok: false, why: 'Too close to the start' };
   if (rectsOverlap(box, W.goalZone)) return { ok: false, why: 'Too close to the flag' };
+  for (const z of W.noBuild || []) if (rectsOverlap(box, z)) return { ok: false, why: z.why };
   const att = opts.attach !== undefined ? opts.attach : findAttach(W, it);
   if (W.map.mech === 'mill' && !(att && att.k === 'mill')) { const hx = 28 * T, hy = 9 * T; const nx = clamp(hx, box.x, box.x + box.w), ny = clamp(hy, box.y, box.y + box.h); const dmin = Math.hypot(nx - hx, ny - hy); const dmax = Math.max(...[[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].map(([x, y]) => Math.hypot(x - hx, y - hy))); if (dmin < 7.8 * T && dmax > 4.2 * T) return { ok: false, why: 'In the way of the sails — put it right on a sail to ride along!' }; }
   if (opts.allowOverlap || W.rules.allowOverlap) return { ok: true, attach: att };
@@ -166,12 +169,14 @@ const HOST_ITEMS = new Set(['mover', 'windmill', 'swing']); // items whose movin
 function attachHosts(W) {
   const out = [];
   if (W.map.mech === 'mill') for (let i = 0; i < 4; i++) out.push({ a: { k: 'mill', i }, s: millSail(W, i) });
+  (W.map.movers || []).forEach((mv, i) => out.push({ a: { k: 'mm', i }, s: mapMoverSolid(W, i) }));
   for (const h of W.items) if (HOST_ITEMS.has(h.id)) { ITEMS[h.id].dyn(h, W); h._s.forEach((s, si) => out.push({ a: si ? { k: 'item', uid: h.uid, si } : { k: 'item', uid: h.uid }, s })); }
   return out;
 }
 function hostSolid(W, a) {
   if (!a) return null;
   if (a.k === 'mill') return W.map.mech === 'mill' && a.i >= 0 && a.i < 4 ? millSail(W, a.i | 0) : null;
+  if (a.k === 'mm') return mapMoverSolid(W, a.i | 0);
   const h = W.items.find(i => i.uid === a.uid && HOST_ITEMS.has(i.id)); if (!h) return null;
   ITEMS[h.id].dyn(h, W); return h._s[a.si | 0] || null;
 }
@@ -188,6 +193,7 @@ function cleanAttach(a) {
   if (!a || typeof a !== 'object') return null;
   const ox = +a.ox, oy = +a.oy; if (!isFinite(ox) || !isFinite(oy) || Math.abs(ox) > 400 || Math.abs(oy) > 400) return null;
   if (a.k === 'mill' && Number.isInteger(a.i) && a.i >= 0 && a.i < 4) return { k: 'mill', i: a.i, ox, oy };
+  if (a.k === 'mm' && Number.isInteger(a.i) && a.i >= 0 && a.i < 64) return { k: 'mm', i: a.i, ox, oy };
   if (a.k === 'item' && typeof a.uid === 'string' && a.uid.length < 40) { const o = { k: 'item', uid: a.uid, ox, oy }; if (Number.isInteger(a.si) && a.si > 0 && a.si < 4) o.si = a.si; return o; }
   return null;
 }

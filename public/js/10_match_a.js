@@ -237,7 +237,7 @@ const Match = {
   beginRace() {
     const M = this.M, W = M.W;
     M.phase = 'race'; M.countdown = 3.2; M.raceT = M.rules.raceTime; M.finishOrder = []; M.deaths = []; M.coinsGot = []; M.endT = 0; M.builders = null; M.goT = 0; M.coinOwner = {};
-    W.t = 0; W.projs = []; W.shieldEnd = null; W.armed = true; for (const it of W.items) it.st = {};
+    W.t = 0; W.projs = []; W.shieldEnd = null; W.goT = null; W.armed = true; for (const it of W.items) it.st = {};
     for (const pv of M.previews || []) if (pv) pv.hide();
     W.spawnSpots = null; if (M.rules.randomSpawn) { stepWorld(W, 0); W.spawnSpots = randomSpawnSpots(W, M.round * 31 + 7, M.players.length); }
     spawnPlayers(W, M.players);

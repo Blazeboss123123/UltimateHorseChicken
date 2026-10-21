@@ -86,6 +86,7 @@ class LobbyScene extends Phaser.Scene {
     }
   }
   startLaunch(mapId, custom) {
+    if (!MAP_BY_ID[mapId]) return; // a map that no longer exists
     if (Net.online) { if (!Net.isHost) { toast('Only the host can start a match'); return; } if (Session.mode !== 'party' && Session.mode !== 'creative') Net.dispatch({ t: 'lobbyMode', mode: 'party' }); Net.dispatch({ t: 'prelaunch', mapId, custom: custom ? { name: custom.name, items: custom.items } : null, mode: Session.mode }); return; }
     Lobby.launch = { mapId, custom, t: 1.6 }; Audio2.sfx('pick');
   }

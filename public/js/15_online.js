@@ -166,7 +166,7 @@ const Online = {
 };
 
 // Lobby launch flow online: the host's map choice counts down on every screen, then the host starts it.
-Net.on('prelaunch', a => { if (!Lobby.scene) return false; Session.mapId = a.mapId; if (a.mode) Session.mode = a.mode; Lobby.launch = { mapId: a.mapId, custom: a.custom || null, t: 1.6 }; Audio2.sfx('pick'); return true; });
+Net.on('prelaunch', a => { if (!Lobby.scene || !MAP_BY_ID[a.mapId]) return false; Session.mapId = a.mapId; if (a.mode) Session.mode = a.mode; Lobby.launch = { mapId: a.mapId, custom: a.custom || null, t: 1.6 }; Audio2.sfx('pick'); return true; });
 Net.on('cancelLaunch', () => { if (!Lobby.launch) return false; Lobby.launch = null; toast('Cancelled'); Audio2.sfx('bad'); return true; });
 Net.on('launch', a => {
   if (Net.online) {
