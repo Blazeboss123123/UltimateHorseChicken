@@ -85,7 +85,7 @@ const MAPS = [
       { w: 2, h: 2, mode: 'ping', path: [[35, 21], [35, 13]], period: 6, ph: .75, style: 'crate' }],
     deco: [['barrels', 4, 31, 1, 'f'], ['hazardsign', 7.5, 31, 1, 'f'], ['ladle', 45, 31, 1, 'f'], ['lamp', 48, 31, 1, 'f'], ['hazardsign', 42, 31, 1, 'f']] },
   { id: 'plant', name: 'Meltdown', theme: 'Nuclear cooling tower', mech: 'sludge', mechText: 'Start at the bottom of the cooling tower, flag at the top — and radioactive coolant is rising behind you. Steam vents give you a boost.',
-    w: 36, h: 54, start: [12, 46, 12, 4], goal: [18, 6.5], style: 'shell', sky: 'toxic',
+    w: 36, h: 54, start: [10, 46, 11, 4], goal: [18, 6.5], style: 'shell', sky: 'toxic',
     pal: { sky: ['#9fd0bc', '#e6f6ec'], far: '#a8c4b8', near: '#88a89a', ground: '#b8c4c0', top: '#d8e0dc', accent: '#ffd34d', haze: '#e6f6ec' },
     terrain: [[0, 0, 3, 54], [33, 0, 3, 54], [3, 20, 2, 12], [31, 20, 2, 12], [3, 53, 30, 1, { style: 'metal' }], [3, 50, 30, .5, { oneway: true, style: 'grate' }],
       [3, 38, 8, .5, { oneway: true, style: 'grate' }], [11.5, 35.5, 4, .5, { oneway: true, style: 'grate' }], [7, 33, 5, .5, { oneway: true, style: 'grate' }],

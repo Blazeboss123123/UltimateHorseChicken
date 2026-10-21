@@ -89,6 +89,10 @@ function spawnPlayers(W, list) {
   list.forEach((p, i) => {
     p.x = S.x + (S.w - PW) * (n === 1 ? .5 : i / (n - 1)); p.y = S.y + S.h - PH - 1;
     const rs = W.spawnSpots && W.spawnSpots[p.idx]; if (rs) { p.x = rs.x; p.y = rs.y; }
+    else { // never start inside a block: slide along the start area to the nearest free spot
+      const blocked = x => W.terrainSolids.some(s => !s.wall && !s.oneway && rectsOverlap({ x: x + 2, y: S.y + 2, w: PW - 4, h: S.h - 4 }, s));
+      if (blocked(p.x)) { let best = null; for (let x = S.x; x <= S.x + S.w - PW; x += 4) if (!blocked(x) && (best == null || Math.abs(x - p.x) < Math.abs(best - p.x))) best = x; if (best != null) p.x = best; }
+    }
     p.vx = p.vy = 0; p.alive = true; p.finished = false; p.climbing = false; p.coin = null; p.stun = 0; p.state = 'idle'; p.deathT = 0; p.facing = 1; p.squash = 0; p.onGround = false; p.ground = null; p.wallT = 0; p.portalCD = 0;
     // drop onto the start platform
     if (!rs) for (let k = 0; k < 200; k++) { if (W.terrainSolids.some(s => !s.wall && rectsOverlap({ x: p.x, y: p.y + 1, w: p.w, h: p.h }, s))) break; p.y += 2; if (p.y > S.y + S.h + 6 * T) { p.y = S.y + S.h - PH - 1; break; } }

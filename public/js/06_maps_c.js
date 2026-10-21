@@ -118,7 +118,7 @@ Object.assign(MECH, {
 
   // ---- Meltdown: radioactive coolant rises from the bottom once the race is on ----
   sludge: {
-    level(W) { const S = W.map.sludge; if (W.goT == null) return S.base * T; return Math.max(S.max, S.base - S.rate * Math.max(0, W.t - W.goT - S.delay)) * T; },
+    level(W) { const S = W.map.sludge; if (W.goT == null || !(W.racing || W.testing)) return S.base * T; /* drained between races (picking, building, results) */ return Math.max(S.max, S.base - S.rate * Math.max(0, W.t - W.goT - S.delay)) * T; },
     tick(W) { const y = W.ms.sludgeY = this.level(W); W.hazards.push({ k: 'r', x: -500, y: y + 8, w: W.map.w * T + 1000, h: 3000, owner: -1, src: 'radioactive coolant' }); },
     hud(W) { const S = W.map.sludge; if (W.goT == null) return null; const k = W.t - W.goT; return k < S.delay ? '☢ Coolant leak in ' + Math.ceil(S.delay - k) + '…' : '☢ Coolant rising — climb!'; },
     drawFront(g, W, t) {

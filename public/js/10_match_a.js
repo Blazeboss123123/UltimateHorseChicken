@@ -328,7 +328,7 @@ const Match = {
     M.finishOrder = a.fo.slice(); M.deaths = a.de.slice(); M.coinsGot = a.co.slice();
     this.endRace(); return true;
   },
-  endRace() { const M = this.M; M.W.spawnSpots = null; M.W.armed = false; M.phase = 'results'; M.resultsT = 0; M.W.racing = false; this.computeAwards(); Audio2.play('results'); },
+  endRace() { const M = this.M; M.W.spawnSpots = null; M.W.armed = false; M.W.goT = null; M.phase = 'results'; M.resultsT = 0; M.W.racing = false; this.computeAwards(); Audio2.play('results'); },
   hostAfterResults() {
     const M = this.M, R = M.rules;
     const top = Math.max(...M.scores.map(s => s.total));
