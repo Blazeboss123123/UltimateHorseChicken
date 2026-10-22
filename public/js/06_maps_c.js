@@ -90,7 +90,8 @@ Object.assign(MECH, {
       else if (ph < D1) { const u = ph - D; x = C.stop + v0 * u * u / (2 * tau); v = v0 * u / tau; }
       else { x = C.stop + dd + v0 * (ph - D1); v = v0; }
       if (dir < 0) x = W.map.w - x - C.len; // every other train runs the other way
-      return { x: x * T, y: C.y * T, w: C.len * T, h: C.h * T, vx: v * T * dir, dir, ph, warn: ph < A + .4, stopped: ph >= S1 && ph < D, leaving: ph >= D - 1 && ph < D, A, D };
+      const present = x < W.map.w + .5 && x + C.len > -.5; // any part of the train inside the station
+      return { x: x * T, y: C.y * T, w: C.len * T, h: C.h * T, vx: v * T * dir, dir, ph, present, coming: !present && ph < A, clear: !present && ph >= A, warn: ph < A + .4, stopped: ph >= S1 && ph < D, leaving: ph >= D - 1 && ph < D, A, D };
     },
     tick(W) {
       const s = W.ms.train = this.state(W), MW = W.map.w * T;
@@ -100,7 +101,7 @@ Object.assign(MECH, {
       else if (Math.abs(s.vx) > 30) W.hazards.push({ k: 'r', x: s.x + 2, y: s.y + 14, w: s.w - 4, h: s.h - 14, owner: -1, src: 'the train' });
       if ((W.racing || W.testing) && Audio2.ctx) { const c = Math.floor(W.t / W.map.train.period); if (s.ph > .9 && W.ms.horn !== c) { W.ms.horn = c; Audio2.tone(311, .75, { type: 'square', vol: .05 }); Audio2.tone(392, .75, { type: 'square', vol: .045 }); } }
     },
-    hud(W) { const s = W.ms.train; if (!s) return null; return s.warn ? (s.dir > 0 ? '🚆 Train coming from the left!' : '🚆 Train coming from the right!') : s.leaving ? '🚆 Doors closing!' : s.stopped ? '🚆 Train in the station — hop on!' : null; },
+    hud(W) { const s = W.ms.train; if (!s) return null; return s.coming || (s.warn && !s.stopped) ? (s.dir > 0 ? '🚆 Train coming from the left!' : '🚆 Train coming from the right!') : s.leaving ? '🚆 Doors closing!' : s.stopped ? '🚆 Train in the station — hop on!' : null; },
     setupView(V) {
       const C = V.W.map.train, MW = V.W.map.w * T, y = C.y * T - 14, h = C.h * T + 14;
       V.trainImg = V.s.add.image(0, 0, bakeTrain(V.W.map)).setOrigin(0, 0).setScale(.5).setDepth(3);
@@ -110,9 +111,9 @@ Object.assign(MECH, {
     updateView(V, t) {
       const s = V.W.ms.train || this.state(V.W), C = V.W.map.train;
       V.trainImg.setPosition(s.x, s.y - TRAIN_PAD).setFlipX(s.dir < 0);
-      // signal lights at both tunnel mouths flash while a train is coming
-      const g = V.gb, on = s.warn && Math.sin(t * 14) > 0;
-      for (const sx of C.signals || []) { rr(g, sx * T - 9, (C.y - 3.2) * T, 18, 34, 5); fillStroke(g, '#2a2a30', 2); circ(g, sx * T, (C.y - 3.2) * T + 9, 5.5, on ? '#ff3a3a' : '#5a1a1a', 1); circ(g, sx * T, (C.y - 3.2) * T + 24, 5.5, !s.warn && !s.stopped ? '#3aff6a' : '#1a4a2a', 1); }
+      // signal lights at both platform ends: flashing red = train coming, red = train in the station, green = tracks clear
+      const g = V.gb, red = s.present || (s.coming && Math.sin(t * 14) > 0), green = s.clear;
+      for (const sx of C.signals || []) { const y0 = (C.y - 3.2) * T; rr(g, sx * T - 10, y0, 20, 36, 5); fillStroke(g, '#2a2a30', 2); circ(g, sx * T, y0 + 9, 6, red ? '#ff3a3a' : '#4a1616', 1); circ(g, sx * T, y0 + 26, 6, green ? '#3aff6a' : '#163a20', 1); if (red) circ(g, sx * T, y0 + 9, 11, 'rgba(255,60,60,.25)', 0); if (green) circ(g, sx * T, y0 + 26, 11, 'rgba(60,255,110,.22)', 0); }
     },
   },
 
