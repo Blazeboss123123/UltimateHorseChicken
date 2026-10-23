@@ -1,5 +1,5 @@
 // ===================== WORLD VIEW: Phaser objects + Arcade physics for one level =====================
-const MOVING_SOLID_ITEMS = new Set(['mover', 'windmill', 'swing']);
+const MOVING_SOLID_ITEMS = new Set(['mover', 'windmill', 'swing', 'plane', 'anvil']);
 class WorldView {
   constructor(scene, W, opt = {}) {
     this.s = scene; this.W = W; W.view = this; this.opt = opt;
@@ -262,11 +262,20 @@ class WorldView {
         if (g.surf === 'bounce' && p.vy >= 0) { p.vy = -980; p.squash = .3; if (g.ref) g.ref.st.boing = 1; Audio2.sfx('bounce'); }
         else if (g.surf === 'crumble' && g.ref && !(g.ref.st.shake > 0)) { g.ref.st.shake = .001; Net.cast({ t: 'crumble', uid: g.ref.uid }); }
         if (g.surf === 'conv') conv = g.conv;
+        if (g.ref && ITEMS[g.ref.id] && ITEMS[g.ref.id].onStand && (W.racing || W.testing)) ITEMS[g.ref.id].onStand(g.ref, W, p);
         // moving platforms (windmill sails, moving platforms, things riding on them) carry you along
         if (g.vx) conv += g.vx;
       }
       if (p.sprint && p.onGround && ix && Math.abs(p.vx) > PHYS.run * 1.1 && (p.dustT = (p.dustT || 0) - dt) <= 0) { p.dustT = .07; FX.burst(p.x + p.w / 2 - ix * 8, p.y + p.h, 1, { color: 'rgba(255,255,255,.8)', kind: 'puff', g: -30, smin: 10, smax: 40 }); }
       if (p.onGround && !p.wasGround && p.lastVy > 300) { p.squash = Math.min(.32, p.lastVy / 2400); Audio2.sfx('land'); FX.burst(p.x + p.w / 2, p.y + p.h, 4, { color: '#ffffff', kind: 'puff', g: 0, smin: 20, smax: 70 }); }
+    }
+    const sand = !p.climbing && W.sinks && W.sinks.find(z => p.x + p.w - 4 > z.x && p.x + 4 < z.x + z.w && p.y + p.h > z.y + 2 && p.y < z.y + z.h);
+    if (sand) {
+      p.vx = clamp(p.vx, -70, 70); p.slide = false;
+      if (inp.pressed.jump || p.buffer > 0) { p.vy = -440; p.buffer = 0; p.jumpT = PHYS.minJump; Audio2.sfx('land'); }
+      if (p.vy >= 0) { p.vy = 24; gravity = 0; } // slowly sinking
+      if (p.y > sand.y + 4) { killPlayer(W, p, { owner: sand.owner, src: 'quicksand' }); return; }
+      if ((p.sandT = (p.sandT || 0) - dt) <= 0) { p.sandT = .18; FX.burst(p.x + p.w / 2, sand.y + 2, 1, { color: 'rgba(200,160,90,.8)', kind: 'puff', g: -20, smin: 10, smax: 40 }); }
     }
     p.wasGround = p.onGround; p.lastVy = p.vy;
     p._conv = conv;
@@ -285,6 +294,7 @@ class WorldView {
       if (pu.ref) { pu.ref.st = pu.ref.st || {}; if (!(pu.ref.st.boing > .5)) Audio2.sfx('bounce'); pu.ref.st.boing = 1; }
       FX.burst(pu.x + ex * 16, pu.y + ey * 16, 6, { color: '#ff5aa8', kind: 'star', g: 0 });
     } else if (rectsOverlap(hb, pu)) { p.vx = pu.ix; p.vy = pu.iy; b.setVelocity(pu.ix, pu.iy); p.stun = .35; p.onGround = false; p.wallLock = .2; FX.burst(p.x + p.w / 2, p.y + p.h / 2, 6, { color: '#ffd34d', kind: 'star', g: 0 }); }
+    if (W.racing || W.testing) for (const it of W.items) if (it._trig && rectsOverlap(hb, it._trig)) triggerItem(W, it);
     for (const h of W.hazards) if (shapeHitsRect(h, hb)) { killPlayer(W, p, h); return; }
     for (let i = W.projs.length - 1; i >= 0; i--) { const pr = W.projs[i]; if (rectCircle(hb, { x: pr.x, y: pr.y, r: pr.r })) { W.projs.splice(i, 1); killPlayer(W, p, pr); return; } }
     for (const it of W.items) if (it._coin && !it.st.taken && !p.coin && rectCircle(hb, it._coin)) { it.st.taken = true; p.coin = it; if (W.onCoin) W.onCoin(p, it); Audio2.sfx('coin'); FX.burst(it._coin.x, it._coin.y, 12, { color: '#ffd34d', kind: 'star', g: 0 }); }
@@ -372,8 +382,8 @@ class WorldView {
     for (const [p, img] of this.projs) if (!live.has(p)) { img.destroy(); this.projs.delete(p); }
     for (const p of this.W.projs) {
       let img = this.projs.get(p);
-      if (!img) { img = this.s.add.image(p.x, p.y, p.kind === 'arrow' ? 'pr_arrow' : p.kind === 'fire' ? 'pr_fire' : 'pr_ball').setScale(.5).setDepth(15); this.projs.set(p, img); }
-      img.setPosition(p.x, p.y); if (p.kind === 'arrow') img.setRotation(Math.atan2(p.vy, p.vx)); else img.rotation += .1;
+      if (!img) { img = this.s.add.image(p.x, p.y, p.kind === 'arrow' ? 'pr_arrow' : p.kind === 'fire' ? 'pr_fire' : p.kind === 'rocket' ? 'pr_rocket' : 'pr_ball').setScale(.5).setDepth(15); this.projs.set(p, img); }
+      img.setPosition(p.x, p.y); if (p.kind === 'arrow' || p.kind === 'rocket') img.setRotation(Math.atan2(p.vy, p.vx)); else img.rotation += .1;
       // speed streak behind each projectile so it reads at a glance
       const sp = Math.hypot(p.vx, p.vy) || 1, ux = p.vx / sp, uy = p.vy / sp, L = p.kind === 'arrow' ? 46 : 30, G = this.gx;
       G.globalAlpha = .45; line(G, p.x - ux * (L + 16), p.y - uy * (L + 16), p.x - ux * 14, p.y - uy * 14, p.kind === 'fire' ? '#ffb62e' : '#ffffff', p.kind === 'arrow' ? 3 : 7); G.globalAlpha = 1;

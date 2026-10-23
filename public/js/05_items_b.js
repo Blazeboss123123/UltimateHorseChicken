@@ -186,10 +186,17 @@ function tickItems(W) {
 function updateProjectiles(W, dt) {
   for (let i = W.projs.length - 1; i >= 0; i--) {
     const p = W.projs[i];
+    if (p.homing) {
+      let best = null, bd = 1e9; for (const q of W.players || []) { if (!q.alive || q.finished) continue; const d = Math.hypot(q.x + q.w / 2 - p.x, q.y + q.h / 2 - p.y); if (d < bd && d < 1100) { bd = d; best = q; } }
+      let a = Math.atan2(p.vy, p.vx); if (best) { let da = Math.atan2(best.y + best.h / 2 - p.y, best.x + best.w / 2 - p.x) - a; while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU; a += clamp(da, -p.turn * dt, p.turn * dt); }
+      const sp = approach(Math.hypot(p.vx, p.vy), p.speed, 260 * dt); p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp;
+      if ((p.smoke = (p.smoke || 0) - dt) <= 0) { p.smoke = .06; FX.burst(p.x - Math.cos(a) * 14, p.y - Math.sin(a) * 14, 1, { color: 'rgba(200,200,200,.7)', kind: 'puff', g: -10, smin: 5, smax: 20 }); }
+    }
     p.life -= dt; p.vy += (p.g || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt;
     let dead = p.life <= 0 || p.x < -200 || p.x > W.map.w * T + 200 || p.y > W.map.h * T + 200 || p.y < -600;
     if (!dead && inShield(W, p.x, p.y)) { dead = true; FX.burst(p.x, p.y, 8, { color: ['#9af0b0', '#ffffff'], smax: 160, g: 0 }); }
     if (!dead) for (const s of W.solids) { if (s.ref === p.ref || s.oneway || s.pl) continue; if (p.x > s.x && p.x < s.x + s.w && p.y > s.y && p.y < s.y + s.h) { dead = true; FX.burst(p.x, p.y, p.kind === 'ball' ? 10 : 4, { color: p.kind === 'ball' ? ['#666', '#999'] : ['#8a5a30', '#ddd'], smax: 160, rmin: 2, rmax: 4 }); break; } }
+    if (dead && p.kind === 'rocket') { FX.burst(p.x, p.y, 18, { color: ['#ffb62e', '#ff5a2a', '#fff3a0'], smax: 300, rmin: 3, rmax: 7 }); Audio2.noise(.3, { freq: 700, slide: 80, vol: .25 }); }
     if (dead) W.projs.splice(i, 1);
   }
 }
@@ -197,6 +204,7 @@ function drawProjectiles(ctx, W) {
   for (const p of W.projs) {
     if (p.kind === 'arrow') { const a = Math.atan2(p.vy, p.vx); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(a); line(ctx, -16, 0, 6, 0, '#7a4a20', 3); poly(ctx, [[6, -4], [13, 0], [6, 4]], '#cfd4da', 1.4); poly(ctx, [[-16, 0], [-21, -5], [-12, 0], [-21, 5]], '#e8473f', 1.2); ctx.restore(); }
     else if (p.kind === 'fire') { for (let i = 0; i < 4; i++) circ(ctx, p.x - p.vx * .01 * i, p.y - p.vy * .012 * i, p.r * (1 - i * .2), ['#fff3a0', '#ffd34d', '#ffb62e', '#ff5a2a'][i], 0); circ(ctx, p.x, p.y, p.r, null, 2); }
+    else if (p.kind === 'rocket') drawRocket(ctx, p.x, p.y, Math.atan2(p.vy, p.vx), 0);
     else { circ(ctx, p.x, p.y, p.r, '#2a2a30', 2); circ(ctx, p.x - 3, p.y - 3, 2.5, '#666', 0); }
   }
 }

@@ -82,7 +82,7 @@ function bakeItems() {
     // base art (static parts only)
     TEX.bake('it_' + id, d.w * T, d.h * T, g => {
       const f = fakeItem(id);
-      if (ITEM_BASE[id]) ITEM_BASE[id](g, d); else if (!ITEM_NOBASE.has(id)) d.draw(g, f, 0);
+      if (ITEM_BASE[id]) ITEM_BASE[id](g, d); else if (d.body) d.body(g, f, 0); else if (d.fx) { } else if (!ITEM_NOBASE.has(id)) d.draw(g, f, 0);
     }, ITEM_PAD);
     // icon for menus / HUD
     const ic = TEX.canvas(72, 72); drawItemIcon(ic.getContext('2d'), id, 36, 36, 60, 1); TEX.add('ico_' + id, ic);
@@ -114,6 +114,7 @@ function bakeItems() {
   for (let k = 0; k < 3; k++) TEX.bake('part_flame_' + k, 3 * T, T * .8, g => { for (let i = 0; i < 9; i++) { const q = i / 9, x = q * 3 * T, s = 10 * (1 - q * .5) + Math.sin(k * 2 + i) * 2; g.fillStyle = q < .3 ? '#fff3a0' : q < .65 ? '#ffb62e' : '#ff5a2a'; g.globalAlpha = .9; g.beginPath(); g.arc(x + 4, T * .4 + Math.sin(k * 3 + i * 2) * 2, s, 0, TAU); g.fill(); } g.globalAlpha = 1; }, 4);
   // projectiles
   TEX.bake('pr_arrow', 44, 16, g => { line(g, 4, 8, 32, 8, '#5a3414', 5.5); line(g, 4, 8, 32, 8, '#a8703a', 3); poly(g, [[30, 2], [43, 8], [30, 14]], '#e4e8ee', 1.8); poly(g, [[0, 3], [10, 8], [0, 13], [4, 8]], '#e8473f', 1.4); poly(g, [[6, 3], [14, 8], [6, 13], [9, 8]], '#ff8a7a', 1.2); }, 4);
+  TEX.bake('pr_rocket', 40, 24, g => drawRocket(g, 22, 12, 0, 0), 2);
   TEX.bake('pr_ball', 24, 24, g => { circ(g, 12, 12, 11, '#2a2a30', 2.4); circ(g, 8.5, 8.5, 3.5, '#6a6a74', 0); circ(g, 7.5, 7.5, 1.6, '#b8b8c0', 0); }, 2);
   TEX.bake('pr_fire', 28, 28, g => { for (let i = 3; i >= 0; i--) circ(g, 14, 14 + i * 2, 11 * (1 - i * .2), ['#fff3a0', '#ffd34d', '#ffb62e', '#ff5a2a'][i], 0); circ(g, 14, 14, 11, null, 2); }, 2);
   // flag & misc

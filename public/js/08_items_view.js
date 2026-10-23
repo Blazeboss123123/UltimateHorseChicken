@@ -11,6 +11,11 @@ function makeItemView(view, it, opts = {}) {
   const base = () => add(s.add.image(cx, cy, 'it_' + it.id).setScale(.5).setAngle(ang));
   const [dx, dy] = rotDir(1, 0, it.rot);
   const g = () => view.gx; // per-frame vector layer
+  if (d.fx) { // newer traps: a baked body plus animated parts drawn every frame
+    const im = d.body ? base() : null;
+    V.update = t => { if (im) im.setVisible(!(d.hideBody && d.hideBody(it))); const G = g(); G.save(); if (opts.alpha != null) G.globalAlpha = opts.alpha; d.fx(G, it, t); G.restore(); };
+    return V;
+  }
   switch (it.id) {
     case 'conveyor': { const im = base(); V.update = t => im.setTexture('it_conveyor_' + (Math.floor(t * 10) % 4)); break; }
     case 'fan': {

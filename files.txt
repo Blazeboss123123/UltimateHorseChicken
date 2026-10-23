@@ -5,6 +5,7 @@
 04_art_b.js
 05_items_a.js
 05_items_b.js
+05_items_c.js
 05_items_art.js
 06_maps_a.js
 06_maps_paint.js

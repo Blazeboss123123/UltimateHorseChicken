@@ -9,9 +9,9 @@ const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // actions a guest may ask the host to perform (always about their own player)
 const GUEST_REQUESTS = new Set(['pick', 'place', 'undo', 'death', 'fin', 'coin']);
 // cosmetic messages any player may send directly
-const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'respawn', 'pfail', 'chat', 'emote']);
+const DIRECT_MSGS = new Set(['cur', 'pcur', 'crumble', 'trig', 'respawn', 'pfail', 'chat', 'emote']);
 // events that belong to a running match (queued if the match scene isn't up yet)
-const MATCH_EVENTS = new Set(['addPlayers', 'round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'pfail']);
+const MATCH_EVENTS = new Set(['addPlayers', 'round', 'pick', 'build', 'place', 'undo', 'skip', 'race', 'death', 'fin', 'coin', 'endRace', 'podium', 'gone', 'cur', 'pcur', 'respawn', 'crumble', 'trig', 'pfail']);
 
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/O/g, '0').replace(/I/g, '1').split('').filter(c => CODE_ALPHA.includes(c)).join('').slice(0, 6); }
 

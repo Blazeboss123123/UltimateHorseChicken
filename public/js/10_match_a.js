@@ -368,4 +368,5 @@ Net.on('cur', a => { const M = Match.M; if (!M || M.phase !== 'build' || !M.buil
 Net.on('pcur', a => { const M = Match.M; if (M && M.phase === 'pick' && M.players[a.pi] && M.players[a.pi].entry.remote) M.pickCur[a.pi] = a.i | 0; });
 Net.on('pfail', a => { const M = Match.M; if (M) { M.msg = { s: a.why, t: 1.4 }; Audio2.sfx('bad'); } });
 Net.on('respawn', a => Match.applyRespawn(a));
+Net.on('trig', a => { const M = Match.M; if (!M) return; const it = M.W.items.find(i => i.uid === a.uid); if (it && (it.st || (it.st = {})).trig == null) it.st.trig = M.W.t; });
 Net.on('crumble', a => { const M = Match.M; if (!M) return; const it = M.W.items.find(i => i.uid === a.uid); if (it && it.st && !(it.st.shake > 0) && !(it.st.fall > 0)) it.st.shake = .001; });

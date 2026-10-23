@@ -31,7 +31,7 @@ function createWorld(map, rules) {
 
 function stepWorld(W, dt) {
   W.t += dt; W.dt = dt;
-  W.forces = []; W.pushers = []; W.hazards = [];
+  W.forces = []; W.pushers = []; W.hazards = []; W.sinks = [];
   W.shields = shieldsOf(W);
   updateAttached(W);
   tickItems(W);
@@ -42,6 +42,7 @@ function stepWorld(W, dt) {
     if (d.solids) { if (!it._s || it._sx !== it.x || it._sy !== it.y || it._sr !== it.rot) { it._s = staticRects(it, d.solids); it._sx = it.x; it._sy = it.y; it._sr = it.rot; } }
     if (it._s) { if (it.attach) it._s.forEach((s, k) => { s.vx = it._avx; s.vy = it._avy; s.key = it.uid + ':' + k; }); for (const s of it._s) S.push(s); }
     if (it._h) for (const h of it._h) W.hazards.push(h);
+    if (it._sink) W.sinks.push(it._sink);
   }
   // Player contact rule: during a race each player is a solid others can bump into and stand on
   if (W.rules && W.rules.contact && (W.racing || W.testing) && W.players) for (const p of W.players) if (p.alive && !p.finished && !p.gone)
@@ -168,7 +169,7 @@ function explodeBomb(W, x, y) {
 // ---------- items riding on moving things (windmill sails, moving platforms) ----------
 // An item placed touching a moving platform sticks to it: it.attach = {k:'mill', i} or {k:'item', uid}
 // plus its offset (ox, oy) from the platform, and follows it every tick.
-const NO_ATTACH = new Set(['mover', 'portal', 'bomb', 'windmill', 'swing', 'flipper']);
+const NO_ATTACH = new Set(['mover', 'portal', 'bomb', 'windmill', 'swing', 'flipper', 'plane', 'anvil']);
 const HOST_ITEMS = new Set(['mover', 'windmill', 'swing']); // items whose moving platforms carry other items
 function attachHosts(W) {
   const out = [];
